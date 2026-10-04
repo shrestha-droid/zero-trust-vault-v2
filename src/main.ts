@@ -1,19 +1,61 @@
+import jsQR from 'jsqr';
 import qrcode from 'qrcode-generator';
+import * as direct from './crypto';
 import {
-  MAX_BYTES, open, parseShard, parseVaultFile, rand, seal, shardTokens, verifyShards, VaultError,
-  type Plain, type Policy, type Shard, type VaultFile,
+  describeSlots, fromB64, fromB64url, MAX_BYTES, parseShard, parseVaultFile, rand, shardTokens, toB64, toB64url, VaultError,
+  type Header, type Plain, type Policy, type Shard, type SlotType, type Unlock, type VaultFile,
 } from './crypto';
 import { airGap, cloud, cloudConfigured, local } from './storage';
+import type { Api } from './worker';
+import CryptoWorker from './worker?worker&inline';
 
 declare const __APP_VERSION__: string;
 
+// Trusted Types: the only script URLs this app may ever load are its service worker and the
+// crypto worker's blob. Must exist before the worker is constructed.
+type TT = { createPolicy: (n: string, p: { createScriptURL: (u: string) => string }) => unknown };
+(window as { trustedTypes?: TT }).trustedTypes?.createPolicy('default', {
+  createScriptURL: (u) => {
+    if (u === './sw.js' || u.startsWith('blob:')) return u;
+    throw new TypeError(`Blocked script URL: ${u}`);
+  },
+});
+
 // Air-gap must engage before anything can reach the network.
 if (airGap.preferred) airGap.lock();
+
+// ================= Crypto engine: isolated worker, main-thread fallback =================
+let worker: Worker | null = null;
+try { worker = new CryptoWorker(); } catch { worker = null; }
+const pending = new Map<number, { res: (v: unknown) => void; rej: (e: Error) => void }>();
+let seq = 0;
+worker?.addEventListener('message', ({ data }: MessageEvent<{ id: number; result?: unknown; error?: string; vault?: boolean }>) => {
+  const p = pending.get(data.id);
+  if (!p) return;
+  pending.delete(data.id);
+  if (data.error !== undefined) p.rej(data.vault ? new VaultError(data.error) : new Error(data.error));
+  else p.res(data.result);
+});
+worker?.addEventListener('error', () => {
+  worker = null; // fall back to in-page crypto for every later call
+  for (const p of pending.values()) p.rej(new VaultError('The crypto worker failed to start. Please try again.'));
+  pending.clear();
+  renderEngine();
+});
+function engine<F extends keyof Api>(fn: F, ...args: Parameters<Api[F]>): ReturnType<Api[F]> {
+  if (!worker) return (direct[fn] as (...a: unknown[]) => ReturnType<Api[F]>)(...args);
+  return new Promise((res, rej) => {
+    const id = ++seq;
+    pending.set(id, { res: res as (v: unknown) => void, rej });
+    worker!.postMessage({ id, fn, args });
+  }) as ReturnType<Api[F]>;
+}
 
 // ================= DOM helpers =================
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const SVG = 'http://www.w3.org/2000/svg';
 const enc = new TextEncoder();
+const dec = new TextDecoder();
 
 const ICONS: Record<string, string> = {
   lock: 'M6 11V8a6 6 0 0 1 12 0v3M5 11h14v10H5zM12 15v2',
@@ -27,7 +69,6 @@ const ICONS: Record<string, string> = {
   x: 'M6 6l12 12M18 6 6 18',
   shard: 'M12 3l7.5 9L12 21 4.5 12zM4.5 12h15',
   key: 'M12 15a4 4 0 1 1-8 0 4 4 0 0 1 8 0zM10.8 12.2 20 3M16 7l3 3M14 9l2 2',
-  branch: 'M6 3v12M18 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM18 9a9 9 0 0 1-9 9',
   eye: 'M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
   'eye-off': 'M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3.2 4M6.6 6.6A17 17 0 0 0 2 12s3.6 7 10 7a9.8 9.8 0 0 0 5.4-1.6M9.9 9.9a3 3 0 0 0 4.2 4.2',
   dice: 'M4 4h16v16H4zM8.5 8.5h.01M15.5 8.5h.01M12 12h.01M8.5 15.5h.01M15.5 15.5h.01',
@@ -40,6 +81,10 @@ const ICONS: Record<string, string> = {
   trash: 'M4 7h16M10 11v6M14 11v6M5 7l1 13h12l1-13M9 7V4h6v3',
   'wifi-off': 'M3 3l18 18M8.5 16.5a5 5 0 0 1 7 0M5 13a10 10 0 0 1 5-2.7M14 10.3a10 10 0 0 1 5 2.7M2 9.5a15 15 0 0 1 4.5-2.9M10.5 5.1A15 15 0 0 1 22 9.5M12 20h.01',
   spinner: 'M12 3a9 9 0 1 0 9 9',
+  fingerprint: 'M7.5 4.6A8.5 8.5 0 0 1 20.5 12v1M3.5 16a8.5 8.5 0 0 0 .8-7.3M8 12a4 4 0 0 1 8 0v1.5a13 13 0 0 1-1.6 6.2M12 12v1.5a9 9 0 0 1-2.4 6.2M8 15.5a9 9 0 0 1-1.3 3.4M19.6 17a14 14 0 0 1-.9 3',
+  camera: 'M4 8h3l2-3h6l2 3h3v11H4zM12 17a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z',
+  refresh: 'M20 11a8 8 0 0 0-14.5-4.5L4 8M4 4v4h4M4 13a8 8 0 0 0 14.5 4.5L20 16M20 20v-4h-4',
+  clock: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2',
 };
 
 function svgEl(tag: string, attrs: Record<string, string>) {
@@ -72,6 +117,8 @@ const fmtDate = (iso: string) => new Date(iso).toLocaleString(undefined, { dateS
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40);
 const vaultName = (f: VaultFile) => `${slug(f.h.label) || 'vault'}-${f.h.id}.vault`;
 const nextFrame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
+const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
+const listIdx = (xs: number[]) => xs.map((i) => `#${i}`).join(', ');
 
 function log(msg: string) {
   const list = $('log');
@@ -81,11 +128,17 @@ function log(msg: string) {
 
 function toast(msg: string, kind: 'ok' | 'error' = 'ok') {
   const t = h('div', { class: `toast ${kind}` }, icon(kind === 'ok' ? 'check' : 'alert'), h('span', {}, msg));
-  $('toasts').append(t);
+  const box = $('toasts');
+  box.append(t);
+  while (box.children.length > 3) box.firstChild!.remove();
   setTimeout(() => { t.classList.add('out'); t.addEventListener('animationend', () => t.remove()); }, kind === 'error' ? 6500 : 3500);
   log(kind === 'error' ? `ERROR ${msg}` : msg);
 }
-const fail = (e: unknown) => toast(e instanceof Error ? e.message : String(e), 'error');
+const fail = (e: unknown) => {
+  const name = (e as DOMException)?.name;
+  if (name === 'NotAllowedError' || name === 'AbortError') return toast('Cancelled.', 'error');
+  toast(e instanceof Error ? e.message : String(e), 'error');
+};
 window.addEventListener('unhandledrejection', (e) => fail(e.reason));
 
 async function busy(btn: HTMLButtonElement, label: string, fn: () => Promise<void>) {
@@ -93,7 +146,7 @@ async function busy(btn: HTMLButtonElement, label: string, fn: () => Promise<voi
   btn.setAttribute('aria-busy', 'true');
   btn.disabled = true;
   btn.replaceChildren(icon('spinner'), h('span', {}, label));
-  await nextFrame(); // paint before Argon2 blocks the thread
+  await nextFrame();
   try { await fn(); } catch (e) { fail(e); } finally {
     btn.replaceChildren(...kids);
     btn.removeAttribute('aria-busy');
@@ -111,8 +164,12 @@ function download(name: string, data: BlobPart, type = 'application/octet-stream
 }
 const downloadVault = (f: VaultFile) => download(vaultName(f), JSON.stringify(f), 'application/json');
 
-async function copy(text: string, what = 'Copied') {
-  try { await navigator.clipboard.writeText(text); toast(what); } catch { toast('Clipboard is blocked — select and copy manually.', 'error'); }
+async function copy(text: string, what = 'Copied', clearAfter = 0) {
+  try {
+    await navigator.clipboard.writeText(text);
+    toast(clearAfter ? `${what} Clipboard clears in ${clearAfter} s.` : what);
+    if (clearAfter) setTimeout(() => { if (document.hasFocus()) navigator.clipboard.writeText('').catch(() => {}); }, clearAfter * 1000);
+  } catch { toast('Clipboard is blocked. Select and copy manually.', 'error'); }
 }
 
 function confirmDialog(title: string, body: string, ok = 'Confirm', danger = false): Promise<boolean> {
@@ -173,13 +230,65 @@ function qr(text: string): HTMLElement {
   return h('div', { class: 'qr', role: 'img', 'aria-label': 'QR code containing this shard' }, svg);
 }
 
+const SLOT_TAG: Record<SlotType, [string, (hd: Header) => string]> = {
+  shards: ['shard', (hd) => `${hd.shamir!.k} of ${hd.shamir!.n} shards`],
+  pass: ['key', () => 'Passphrase'],
+  'shards+pass': ['lock', (hd) => `${hd.shamir!.k}/${hd.shamir!.n} shards + passphrase`],
+  passkey: ['fingerprint', () => 'Passkey'],
+};
 function tagsFor(f: VaultFile): HTMLElement[] {
-  const t: HTMLElement[] = [];
-  if (f.h.shamir) t.push(h('span', { class: 'tag accent' }, icon('shard'), `${f.h.shamir.k} of ${f.h.shamir.n} shards`));
-  if (f.h.pass) t.push(h('span', { class: 'tag accent' }, icon('key'), 'Passphrase'));
-  t.push(h('span', { class: 'tag' }, `${fmtBytes(Math.floor((f.ct.length * 3) / 4))}`));
+  const t = f.h.slots.map((s) => h('span', { class: 'tag accent' }, icon(SLOT_TAG[s.type][0]), SLOT_TAG[s.type][1](f.h)));
+  t.push(h('span', { class: 'tag' }, fmtBytes(Math.floor((f.ct.length * 3) / 4))));
   return t;
 }
+const needsPassToo = (hd: Header) => hd.slots.some((s) => s.type === 'shards+pass') && !hd.slots.some((s) => s.type === 'shards');
+
+// ================= Passkeys (WebAuthn PRF) =================
+const PK_KEY = 'ztv.passkey';
+interface SavedPasskey { cred: string; created: string; rp: string }
+type PrfResults = { prf?: { enabled?: boolean; results?: { first?: ArrayBuffer } } };
+
+const passkey = {
+  get supported() { return isSecureContext && location.protocol !== 'file:' && 'PublicKeyCredential' in window; },
+  get saved(): SavedPasskey | null {
+    try { return JSON.parse(localStorage.getItem(PK_KEY) ?? 'null') as SavedPasskey | null; } catch { return null; }
+  },
+  set saved(v: SavedPasskey | null) {
+    try { if (v) localStorage.setItem(PK_KEY, JSON.stringify(v)); else localStorage.removeItem(PK_KEY); } catch { /* storage blocked */ }
+  },
+  async register(): Promise<SavedPasskey> {
+    const cred = (await navigator.credentials.create({
+      publicKey: {
+        rp: { name: 'Zero-Trust Vault' },
+        user: { id: rand(16), name: 'vault-key', displayName: 'Zero-Trust Vault key' },
+        challenge: rand(32), // no server: the credential is used only for its PRF, never as a login assertion
+        pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
+        authenticatorSelection: { residentKey: 'required', userVerification: 'required' },
+        extensions: { prf: {} } as AuthenticationExtensionsClientInputs,
+      },
+    })) as PublicKeyCredential | null;
+    if (!cred) throw new VaultError('Passkey creation was cancelled.');
+    if (!(cred.getClientExtensionResults() as PrfResults).prf?.enabled) {
+      throw new VaultError("This authenticator doesn't support the PRF extension, so it can't hold vault keys. Recent iCloud Keychain, Google Password Manager, Windows Hello and YubiKey 5 do.");
+    }
+    const saved = { cred: toB64url(new Uint8Array(cred.rawId)), created: new Date().toISOString(), rp: location.hostname };
+    passkey.saved = saved;
+    return saved;
+  },
+  async prf(cred: string, salt: Uint8Array): Promise<Uint8Array> {
+    const a = (await navigator.credentials.get({
+      publicKey: {
+        challenge: rand(32),
+        allowCredentials: [{ type: 'public-key', id: fromB64url(cred) }],
+        userVerification: 'required',
+        extensions: { prf: { eval: { first: salt } } } as AuthenticationExtensionsClientInputs,
+      },
+    })) as PublicKeyCredential | null;
+    const out = a && (a.getClientExtensionResults() as PrfResults).prf?.results?.first;
+    if (!out) throw new VaultError('The passkey did not return a PRF secret.');
+    return new Uint8Array(out);
+  },
+};
 
 // ================= Tabs =================
 const TABS = ['seal', 'open', 'vault', 'verify', 'settings'] as const;
@@ -197,7 +306,7 @@ function show(tab: Tab) {
   if (tab === 'vault') void renderVault();
   if (tab === 'open') void refreshPick();
   if (tab === 'settings') void refreshSettings();
-  if (tab === 'seal') void refreshDest();
+  if (tab === 'seal') { void refreshDest(); refreshPasskeyMethod(); }
   window.scrollTo({ top: 0 });
 }
 tabBtns.forEach((b, i) => {
@@ -232,24 +341,34 @@ const nEl = $<HTMLInputElement>('n');
 const kEl = $<HTMLInputElement>('k');
 const passEl = $<HTMLInputElement>('pass');
 const pass2El = $<HTMLInputElement>('pass2');
+const mShards = $<HTMLInputElement>('m-shards');
+const mPass = $<HTMLInputElement>('m-pass');
+const mPasskey = $<HTMLInputElement>('m-passkey');
+const requireBoth = $<HTMLInputElement>('require-both');
 let staged: { name: string; type: string; data: Uint8Array } | null = null;
+type Rekey = { label: string; id: string; where?: 'local' | 'cloud' } | null;
+let rekey: Rekey = null;
 
 const kind = seg('payload-kind', (v) => {
   $('payload-text').hidden = v !== 'text';
   $('payload-file').hidden = v !== 'file';
   summary();
 });
-const policy = seg('policy', (v) => {
-  $('shard-config').hidden = v === 'pass';
-  $('pass-config').hidden = v === 'shards';
-  summary();
-});
 
-secretText.addEventListener('input', () => {
+function updateTextCount() {
   $('text-count').textContent = `${secretText.value.length.toLocaleString()} characters`;
   summary();
-});
+}
+secretText.addEventListener('input', updateTextCount);
 
+function stage(file: { name: string; type: string; data: Uint8Array }) {
+  staged = file;
+  $('file-name').textContent = file.name;
+  $('file-meta').textContent = `${fmtBytes(file.data.length)} · ${file.type}`;
+  $('file-chip').hidden = false;
+  $('file-drop').hidden = true;
+  summary();
+}
 function clearStaged() {
   staged?.data.fill(0);
   staged = null;
@@ -260,15 +379,48 @@ function clearStaged() {
 dropzone($('file-drop'), async ([f]) => {
   if (!f) return;
   if (f.size > MAX_BYTES) return fail(new VaultError(`${f.name} is ${fmtBytes(f.size)}. The limit is 100 MB.`));
-  staged = { name: f.name, type: f.type || 'application/octet-stream', data: new Uint8Array(await f.arrayBuffer()) };
-  $('file-name').textContent = f.name;
-  $('file-meta').textContent = `${fmtBytes(f.size)} · ${staged.type}`;
-  $('file-chip').hidden = false;
-  $('file-drop').hidden = true;
+  stage({ name: f.name, type: f.type || 'application/octet-stream', data: new Uint8Array(await f.arrayBuffer()) });
   log(`Staged ${f.name} in memory`);
-  summary();
 });
 $('file-clear').addEventListener('click', clearStaged);
+
+/** Slot types the current form would produce. */
+function chosenSlots(): SlotType[] {
+  const t: SlotType[] = [];
+  if (mShards.checked && mPass.checked && requireBoth.checked) t.push('shards+pass');
+  else {
+    if (mShards.checked) t.push('shards');
+    if (mPass.checked) t.push('pass');
+  }
+  if (mPasskey.checked) t.push('passkey');
+  return t;
+}
+function ruleText(): string {
+  const slots = chosenSlots();
+  if (!slots.length) return 'Pick at least one way to unlock.';
+  return `Opens with: ${describeSlots({ shamir: { k: +kEl.value, n: +nEl.value, fp: '' }, slots: slots.map((type) => ({ type, iv: '', key: '' })) })}`;
+}
+
+function syncMethods() {
+  $('shard-config').hidden = !mShards.checked;
+  $('pass-config').hidden = !mPass.checked;
+  const both = mShards.checked && mPass.checked;
+  $('both-row').hidden = !both;
+  if (!both) requireBoth.checked = false;
+  $('rule').textContent = ruleText();
+  summary();
+}
+[mShards, mPass, mPasskey, requireBoth].forEach((el) => el.addEventListener('change', syncMethods));
+
+function refreshPasskeyMethod() {
+  const sub = $('m-passkey-sub');
+  const ok = passkey.supported && Boolean(passkey.saved);
+  mPasskey.disabled = !ok;
+  if (!ok) mPasskey.checked = false;
+  sub.textContent = !passkey.supported ? 'Needs the HTTPS site (not the offline file)'
+    : !passkey.saved ? 'Register one under Settings first' : 'Touch ID, Windows Hello, security key';
+  syncMethods();
+}
 
 function syncSliders() {
   const n = +nEl.value;
@@ -280,9 +432,10 @@ function syncSliders() {
   for (const el of [nEl, kEl]) el.style.setProperty('--p', `${((+el.value - +el.min) / (+el.max - +el.min || 1)) * 100}%`);
   $('pips').replaceChildren(...Array.from({ length: n }, (_, i) => h('span', { class: `pip${i < k ? ' need' : ''}` }, String(i + 1))));
   const spare = n - k;
-  $('policy-hint').textContent = `Any ${k} of ${n} shards open this vault. `
+  $('policy-hint').textContent = `Any ${k} of ${n} shards rebuild the key. `
     + (spare ? `Up to ${spare} can be lost safely. ` : 'Every shard is required. Losing one locks the vault forever. ')
-    + `${k - 1 === 1 ? 'A single shard reveals' : `Any ${k - 1} together reveal`} nothing.`;
+    + `${k - 1 === 1 ? 'A single shard reveals' : `Any ${k - 1} together reveal`} nothing. Extra shards let the app catch forged ones.`;
+  $('rule').textContent = ruleText();
   summary();
 }
 nEl.addEventListener('input', syncSliders);
@@ -345,15 +498,14 @@ async function refreshDest() {
 }
 
 function summary() {
-  const p = policy.get();
-  const k = kEl.value, n = nEl.value;
   const what = kind.get() === 'text'
     ? (secretText.value ? `Text · ${secretText.value.length.toLocaleString()} chars` : 'Nothing yet')
     : (staged ? `${staged.name} · ${fmtBytes(staged.data.length)}` : 'No file chosen');
-  const who = p === 'shards' ? `Any ${k} of ${n} shards` : p === 'pass' ? 'Passphrase' : `${k} of ${n} shards, or passphrase`;
+  const slots = chosenSlots();
   const where = { local: 'This device', cloud: 'Cloud', download: 'Download only' }[destValue()];
-  const rows: [string, string][] = [['Payload', what], ['Unlock', who], ['Store', where], ['Cipher', 'AES-256-GCM']];
-  if (p !== 'shards') rows.push(['KDF', 'Argon2id · 64 MiB']);
+  const rows: [string, string][] = [['Payload', what], ['Key slots', slots.length ? slots.join(' · ') : 'None'], ['Store', where], ['Cipher', 'AES-256-GCM']];
+  if (mPass.checked) rows.push(['KDF', 'Argon2id · 64 MiB']);
+  rows.push(['Engine', worker ? 'Isolated worker' : 'Main thread']);
   $('summary').replaceChildren(...rows.flatMap(([a, b]) => [h('dt', {}, a), h('dd', {}, b)]));
 }
 
@@ -364,10 +516,11 @@ function resetSeal() {
   setPassVisible(false);
   clearStaged();
   meter();
-  $('text-count').textContent = '0 characters';
+  updateTextCount();
 }
 
-$('seal-btn').addEventListener('click', (e) => busy(e.currentTarget as HTMLButtonElement, 'Sealing…', async () => {
+/** Synchronous validation, so nothing (e.g. a passkey prompt) starts for an invalid form. */
+function buildSeal(): { plain: Plain; pol: Policy } {
   let plain: Plain;
   if (kind.get() === 'text') {
     if (!secretText.value) throw new VaultError('Write something to seal first.');
@@ -376,55 +529,86 @@ $('seal-btn').addEventListener('click', (e) => busy(e.currentTarget as HTMLButto
     if (!staged) throw new VaultError('Choose a file to seal.');
     plain = { meta: { kind: 'file', name: staged.name, type: staged.type, size: 0 }, data: staged.data };
   }
-  const p = policy.get();
-  const pol: Policy = { label: labelEl.value };
-  if (p !== 'pass') pol.shards = { k: +kEl.value, n: +nEl.value };
-  if (p !== 'shards') {
+  const slots = chosenSlots();
+  if (!slots.length) throw new VaultError('Pick at least one way to unlock.');
+  if (slots.length === 1 && slots[0] === 'passkey') {
+    throw new VaultError('Add shards or a passphrase too. A passkey only works on this domain, so a passkey-only vault would be lost if the site ever went away.');
+  }
+  const pol: Policy = { label: labelEl.value, requireBoth: requireBoth.checked };
+  if (mShards.checked) pol.shards = { k: +kEl.value, n: +nEl.value };
+  if (mPass.checked) {
     if (passEl.value.length < 8) throw new VaultError('Passphrase must be at least 8 characters.');
     if (passEl.value !== pass2El.value) throw new VaultError("Passphrases don't match.");
     pol.passphrase = passEl.value;
   }
-  const dest = destValue();
-  if (dest === 'cloud' && !(await cloud.session())) throw new VaultError('Sign in under Settings to save to the cloud.');
+  return { plain, pol };
+}
 
-  const { file, shards } = await seal(plain, pol);
-  let saveError: string | undefined;
-  try {
-    if (dest === 'local') await local.put(file);
-    else if (dest === 'cloud') await cloud.put(file);
-    else downloadVault(file);
-  } catch (err) {
-    saveError = err instanceof Error ? err.message : String(err); // shards are still shown; user can download the .vault
-  }
-  log(`Sealed ${file.h.id} → ${dest}${saveError ? ' (save failed)' : ''}`);
-  resetSeal();
-  showSealed(file, shards, dest, saveError);
-}));
+$('seal-btn').addEventListener('click', (e) => {
+  const btn = e.currentTarget as HTMLButtonElement;
+  let built: ReturnType<typeof buildSeal>;
+  try { built = buildSeal(); } catch (err) { return fail(err); }
+  // Start WebAuthn synchronously inside the click so Safari keeps the user gesture.
+  const pk = mPasskey.checked ? passkey.saved : null;
+  const salt = pk ? rand(32) : null;
+  const prfP = pk ? passkey.prf(pk.cred, salt!) : null;
+  prfP?.catch(() => {});
+  void busy(btn, pk ? 'Touch your passkey…' : 'Sealing…', async () => {
+    const { plain, pol } = built;
+    if (pk) pol.passkey = { cred: pk.cred, rp: pk.rp, salt: toB64(salt!), prf: await prfP! };
+    const dest = destValue();
+    if (dest === 'cloud' && !(await cloud.session())) throw new VaultError('Sign in under Settings to save to the cloud.');
+
+    const { file, shards } = await engine('seal', plain, pol);
+    let saveError: string | undefined;
+    try {
+      if (dest === 'local') await local.put(file);
+      else if (dest === 'cloud') await cloud.put(file);
+      else downloadVault(file);
+    } catch (err) {
+      saveError = err instanceof Error ? err.message : String(err); // shards are still shown; user can download the .vault
+    }
+    log(`Sealed ${file.h.id} → ${dest} [${file.h.slots.map((s) => s.type).join(', ')}]${saveError ? ' (save failed)' : ''}`);
+    const replaced = rekey;
+    setRekey(null);
+    resetSeal();
+    showSealed(file, shards, dest, saveError, replaced);
+  });
+});
+
+function setRekey(r: Rekey) {
+  rekey = r;
+  $('rekey-banner').hidden = !r;
+  if (r) $('rekey-name').textContent = r.label;
+}
+$('rekey-cancel').addEventListener('click', () => { setRekey(null); resetSeal(); });
 
 // ---- Sealed dialog ----
-let sealed: { file: VaultFile; shards: string[]; saved: boolean } | null = null;
+let sealed: { file: VaultFile; shards: string[]; saved: boolean; replaced: Rekey } | null = null;
 const sealedDialog = $<HTMLDialogElement>('sealed-dialog');
 
 function shardFile(f: VaultFile, i: number) { return `vault-${f.h.id}-shard-${i + 1}-of-${f.h.shamir!.n}.key`; }
 
-function showSealed(file: VaultFile, shards: string[], dest: string, saveError?: string) {
-  sealed = { file, shards, saved: false };
+function showSealed(file: VaultFile, shards: string[], dest: string, saveError?: string, replaced: Rekey = null) {
+  sealed = { file, shards, saved: false, replaced };
   const where = { local: 'Saved on this device', cloud: 'Uploaded to your cloud vault', download: 'Downloaded as a .vault file' }[dest];
   $('sealed-title').textContent = saveError ? 'Sealed, but not saved' : 'Vault sealed';
   $('sealed-sub').textContent = saveError
     ? `Saving failed: ${saveError}. Download the .vault file now or the data is lost.`
     : `${where} · id ${file.h.id}${file.h.label ? ` · ${file.h.label}` : ''}`;
+  const both = needsPassToo(file.h);
   const warn = $('sealed-warn').querySelector('div')!;
   warn.replaceChildren(...(shards.length
-    ? [h('strong', {}, 'Save your shards now. '), `They are shown once. Nobody, including us, can recover them. Give each to a different person or place. Any ${file.h.shamir!.k} open the vault.`]
-    : [h('strong', {}, 'Your passphrase is the only key. '), 'It cannot be reset. Store it somewhere safe and separate from the vault file.']));
+    ? [h('strong', {}, 'Save your shards now. '), `They are shown once and nobody, including us, can recover them. Give each to a different person or place. Opens with ${describeSlots(file.h)}.`
+      + (both ? ' The shards are useless without the passphrase, so store it separately.' : '')]
+    : [h('strong', {}, 'Your keys are the only way in. '), `Opens with ${describeSlots(file.h)}. Nothing can be reset.`]));
   $('shard-grid').replaceChildren(...shards.map((s, i) => {
     const card = h('article', { class: 'shard-card' },
       h('header', {}, h('strong', {}, `SHARD ${i + 1}/${shards.length}`), h('span', {}, `${file.h.id.slice(0, 8)}…`)),
       qr(s),
       h('div', { class: 'shard-text', title: s }, s),
       h('div', { class: 'row' },
-        button('Copy', 'copy', () => { sealed!.saved = true; void copy(s, `Shard ${i + 1} copied`); }),
+        button('Copy', 'copy', () => { sealed!.saved = true; void copy(s, `Shard ${i + 1} copied.`); }),
         button('.key', 'download', () => { sealed!.saved = true; download(shardFile(file, i), `${s}\n`, 'text/plain'); })));
     card.style.animationDelay = `${i * 60}ms`;
     return card;
@@ -436,10 +620,11 @@ function showSealed(file: VaultFile, shards: string[], dest: string, saveError?:
 
 $('dl-vault').addEventListener('click', () => sealed && downloadVault(sealed.file));
 $('dl-shards').addEventListener('click', async () => {
-  if (!sealed) return;
-  sealed.saved = true;
-  for (const [i, s] of sealed.shards.entries()) {
-    download(shardFile(sealed.file, i), `${s}\n`, 'text/plain');
+  const cur = sealed;
+  if (!cur) return;
+  cur.saved = true;
+  for (const [i, s] of cur.shards.entries()) {
+    download(shardFile(cur.file, i), `${s}\n`, 'text/plain');
     await new Promise((r) => setTimeout(r, 200)); // browsers drop rapid-fire downloads
   }
 });
@@ -447,34 +632,46 @@ $('print-kit').addEventListener('click', () => { if (sealed) { sealed.saved = tr
 
 async function closeSealed() {
   if (sealed && !sealed.saved && !(await confirmDialog('Close without saving shards?', "You haven't copied, downloaded or printed any shard. Once closed they're gone, and so is access to this vault.", 'Discard shards', true))) return;
+  const replaced = sealed?.replaced;
   sealed = null;
   $('shard-grid').replaceChildren();
   sealedDialog.close();
+  if (replaced) await retireOld(replaced);
   void renderVault();
+}
+async function retireOld(old: NonNullable<Rekey>) {
+  if (!old.where) return toast(`Re-keyed. Destroy the old .vault file for “${old.label}” so its old shards stop mattering.`);
+  if (!(await confirmDialog('Delete the old vault?', `“${old.label}” (${old.id}) still opens with its old keys. Delete it so those shards become useless?`, 'Delete old vault', true))) return;
+  try {
+    await (old.where === 'local' ? local.remove(old.id) : cloud.remove(old.id));
+    toast('Old vault deleted. Its shards no longer open anything.');
+  } catch (e) { fail(e); }
 }
 $('sealed-done').addEventListener('click', closeSealed);
 sealedDialog.addEventListener('cancel', (e) => { e.preventDefault(); void closeSealed(); });
 window.addEventListener('beforeunload', (e) => { if (sealed && !sealed.saved) e.preventDefault(); });
 
 function printKit(file: VaultFile, shards: string[]) {
-  const { id, label, created, shamir, pass } = file.h;
+  const { id, label, created, shamir } = file.h;
+  const both = needsPassToo(file.h);
+  const others = file.h.slots.filter((s) => s.type === 'pass' || s.type === 'passkey').map((s) => (s.type === 'pass' ? 'passphrase' : 'passkey'));
   const pages = shards.map((s, i) => h('section', { class: 'kit-page' },
     h('h1', {}, `Recovery shard ${i + 1} of ${shamir!.n}`),
-    h('p', { class: 'kit-sub' }, `${label || 'Zero-Trust Vault'}: any ${shamir!.k} of ${shamir!.n} shards open this vault.`),
+    h('p', { class: 'kit-sub' }, `${label || 'Zero-Trust Vault'}: ${describeSlots(file.h)}.`),
     qr(s),
     h('div', { class: 'kit-shard' }, s),
     h('dl', { class: 'kit-meta' },
       h('dt', {}, 'Vault id'), h('dd', {}, id),
       h('dt', {}, 'Created'), h('dd', {}, fmtDate(created)),
-      h('dt', {}, 'Needed'), h('dd', {}, `${shamir!.k} different shards`),
-      h('dt', {}, 'Passphrase'), h('dd', {}, pass ? 'Also opens with the passphrase' : 'None')),
+      h('dt', {}, 'Needed'), h('dd', {}, `${shamir!.k} different shards${both ? ' + the passphrase' : ''}`),
+      h('dt', {}, 'Alternatives'), h('dd', {}, others.length ? `Also opens with the ${others.join(' or ')}` : 'None')),
     h('strong', {}, 'How to recover'),
     h('ol', {},
       h('li', {}, 'Get the vault file (.vault), or access to the device or account where it was saved.'),
-      h('li', {}, `Collect ${shamir!.k} different shards from their holders. Scan each QR code with any phone camera to get its text, or type it in.`),
+      h('li', {}, `Collect ${shamir!.k} different shards from their holders${both ? ', plus the passphrase' : ''}.`),
       h('li', {}, 'Open Zero-Trust Vault (the website or the offline HTML file) and go to Open.'),
-      h('li', {}, 'Load the vault, paste the shards, and press Open vault. Typos are detected automatically.')),
-    h('p', {}, `Keep this page private. On its own it reveals nothing, but together with ${shamir!.k - 1} other shard${shamir!.k > 2 ? 's' : ''} it unlocks the vault.`)));
+      h('li', {}, 'Load the vault, then scan each QR code with "Scan QR" (or paste the text), and press Open vault. Typos and forged shards are detected automatically.')),
+    h('p', {}, `Keep this page private. On its own it reveals nothing, but together with ${shamir!.k - 1} other shard${shamir!.k > 2 ? 's' : ''}${both ? ' and the passphrase' : ''} it unlocks the vault.`)));
   $('print-root').replaceChildren(...pages);
   window.addEventListener('afterprint', () => $('print-root').replaceChildren(), { once: true });
   window.print();
@@ -482,14 +679,17 @@ function printKit(file: VaultFile, shards: string[]) {
 
 // ================= OPEN =================
 let target: VaultFile | null = null;
+let targetWhere: 'local' | 'cloud' | undefined;
 let validShards: Shard[] = [];
-let opened: Plain | null = null;
+let opened: (Plain & { via: SlotType; bad: number[] }) | null = null;
 const shardPaste = $<HTMLTextAreaElement>('shard-paste');
 const openPass = $<HTMLInputElement>('open-pass');
 const pick = $<HTMLSelectElement>('vault-pick');
+const slotTypes = () => target?.h.slots.map((s) => s.type) ?? [];
 
-function setTarget(f: VaultFile | null, source = '') {
+function setTarget(f: VaultFile | null, source = '', where?: 'local' | 'cloud') {
   target = f;
+  targetWhere = where;
   const info = $('vault-info');
   info.hidden = !f;
   if (f) {
@@ -499,13 +699,25 @@ function setTarget(f: VaultFile | null, source = '') {
       h('span', { class: 'hint' }, `Created ${fmtDate(f.h.created)}${source ? ` · ${source}` : ''}`));
     log(`Loaded vault ${f.h.id}${source ? ` from ${source}` : ''}`);
   }
-  const shards = !f || Boolean(f.h.shamir);
-  const pass = !f || Boolean(f.h.pass);
+  const types = slotTypes();
+  const shards = !f || types.some((t) => t.includes('shards'));
+  const pass = !f || types.includes('pass') || types.includes('shards+pass');
+  const pk = types.includes('passkey');
   $('unlock-shards').hidden = !shards;
   $('unlock-pass').hidden = !pass;
+  $('open-btn').hidden = !shards && !pass;
   $('unlock-or').hidden = !(shards && pass);
-  $('keys-sub').textContent = !f ? 'Shards, a passphrase, or whichever this vault accepts.'
-    : shards && pass ? `${f.h.shamir!.k} shards or the passphrase.` : shards ? `${f.h.shamir!.k} of ${f.h.shamir!.n} shards.` : 'The passphrase.';
+  $('unlock-or-text').textContent = types.includes('shards+pass') ? 'and' : 'or';
+  $('unlock-passkey').hidden = !pk;
+  if (pk) {
+    const slot = f!.h.slots.find((s) => s.type === 'passkey')!;
+    const usable = passkey.supported && slot.rp === location.hostname;
+    $<HTMLButtonElement>('open-passkey').disabled = !usable;
+    $('passkey-open-hint').textContent = !passkey.supported ? 'Passkeys need the HTTPS site and are not available in the offline file. Use another key slot.'
+      : slot.rp !== location.hostname ? `This passkey belongs to ${slot.rp}. Open the vault there, or use another key slot.`
+      : 'Works with this passkey on any device it syncs to.';
+  }
+  $('keys-sub').textContent = f ? `Opens with ${describeSlots(f.h)}.` : 'Shards, a passphrase, a passkey: whatever this vault accepts.';
   void renderOpenShards();
 }
 
@@ -516,32 +728,34 @@ dropzone($('vault-drop'), async ([f]) => {
 
 async function refreshPick() {
   const keep = pick.value;
-  const opts: HTMLOptionElement[] = [h('option', { value: '' }, 'Choose a record…')];
+  const opts: HTMLElement[] = [h('option', { value: '' }, 'Choose a record…')];
   const localFiles = await local.list().catch(() => []);
   if (localFiles.length) {
     const g = h('optgroup', { label: 'This device' });
     for (const f of localFiles.sort((a, b) => b.h.created.localeCompare(a.h.created))) g.append(h('option', { value: `local:${f.h.id}` }, `${f.h.label || 'Untitled'} · ${f.h.id.slice(0, 8)}`));
-    opts.push(g as unknown as HTMLOptionElement);
+    opts.push(g);
   }
   if (await cloud.session().catch(() => null)) {
     const items = await cloud.list().catch(() => []);
     if (items.length) {
       const g = h('optgroup', { label: 'Cloud' });
       for (const it of items) g.append(h('option', { value: `cloud:${it.id}` }, `${it.id} · ${fmtDate(it.created)}`));
-      opts.push(g as unknown as HTMLOptionElement);
+      opts.push(g);
     }
   }
   pick.replaceChildren(...opts);
   pick.value = keep;
 }
+async function loadRecord(where: 'local' | 'cloud', id: string, how?: string) {
+  const f = where === 'local' ? await local.get(id) : await cloud.get(id);
+  if (!f) throw new VaultError('Record not found.');
+  pick.value = `${where}:${id}`;
+  setTarget(f, how ?? (where === 'local' ? 'this device' : 'cloud'), where);
+}
 pick.addEventListener('change', async () => {
   const [where, id] = pick.value.split(':');
   if (!id) return setTarget(null);
-  try {
-    const f = where === 'local' ? await local.get(id) : await cloud.get(id);
-    if (!f) throw new VaultError('Record not found.');
-    setTarget(f, where === 'local' ? 'this device' : 'cloud');
-  } catch (e) { fail(e); }
+  try { await loadRecord(where as 'local' | 'cloud', id); } catch (e) { fail(e); }
 });
 
 function appendText(area: HTMLTextAreaElement, files: File[], after: () => void) {
@@ -551,7 +765,7 @@ function appendText(area: HTMLTextAreaElement, files: File[], after: () => void)
   });
 }
 
-/** Parse shard tokens from text; returns per-token status. Shared by Open and Verify. */
+/** Parse shard tokens from text; returns per-token status. Shared by Open, Verify and the scanner. */
 async function parseTokens(text: string) {
   const seen = new Set<string>();
   const out: { token: string; shard?: Shard; error?: string }[] = [];
@@ -568,6 +782,12 @@ async function renderOpenShards() {
   const gen = ++openGen;
   const parsed = await parseTokens(shardPaste.value);
   if (gen !== openGen) return;
+  // Every shard belongs to one other vault that's on this device: switch to it.
+  const ids = [...new Set(parsed.flatMap((p) => (p.shard ? [p.shard.id] : [])))];
+  if (target && ids.length === 1 && ids[0] !== target.h.id) {
+    const f = await local.get(ids[0]).catch(() => undefined);
+    if (f && gen === openGen) { pick.value = `local:${ids[0]}`; setTarget(f, 'this device, matched by shard', 'local'); return; }
+  }
   const forId = target?.h.id ?? parsed.find((p) => p.shard)?.shard!.id;
   const chips: HTMLElement[] = [];
   const good = new Map<number, Shard>();
@@ -575,7 +795,7 @@ async function renderOpenShards() {
     if (!p.shard) { chips.push(h('li', { class: 'chip bad', title: p.error }, icon('alert'), 'damaged shard')); continue; }
     if (p.shard.id !== forId) { chips.push(h('li', { class: 'chip dim', title: `Belongs to vault ${p.shard.id}` }, `#${p.shard.i} · other vault`)); continue; }
     good.set(p.shard.i, p.shard);
-    chips.push(h('li', { class: 'chip' }, icon('check'), `#${p.shard.i}/${p.shard.n}`));
+    chips.push(h('li', { class: 'chip', 'data-i': String(p.shard.i) }, icon('check'), `#${p.shard.i}/${p.shard.n}`));
   }
   validShards = [...good.values()];
   $('shard-chips').replaceChildren(...chips);
@@ -586,13 +806,13 @@ async function renderOpenShards() {
   ring.style.setProperty('--q', String(k ? Math.min(100, (have / k) * 100) : 0));
   ring.classList.toggle('done', k > 0 && have >= k);
   $('ring-text').textContent = k ? `${have}/${k}` : String(have);
-  $('quorum-title').textContent = !have ? 'No shards yet' : have >= k ? 'Quorum reached' : `${k - have} more shard${k - have > 1 ? 's' : ''} needed`;
-  $('quorum-sub').textContent = !have ? 'Drop .key files or paste shards below.' : `Vault ${forId}`;
+  $('quorum-title').textContent = !have ? 'No shards yet' : have >= k ? (have > k ? `Quorum + ${have - k} spare` : 'Quorum reached') : `${k - have} more shard${k - have > 1 ? 's' : ''} needed`;
+  $('quorum-sub').textContent = !have ? 'Drop .key files, scan QR codes, or paste shards below.' : `Vault ${forId}${have > k ? ' · spares let forged shards be identified' : ''}`;
 
   // Shards first, no vault yet: find the matching record on this device automatically.
   if (!target && forId && validShards.length) {
     const f = await local.get(forId).catch(() => undefined);
-    if (f && !target && gen === openGen) { pick.value = `local:${forId}`; setTarget(f, 'this device, matched by shard'); return; }
+    if (f && !target && gen === openGen) { pick.value = `local:${forId}`; setTarget(f, 'this device, matched by shard', 'local'); return; }
     if (!f) $('quorum-sub').textContent = `For vault ${forId}. Load its .vault file to open it.`;
   }
   updateOpenBtn();
@@ -601,35 +821,73 @@ shardPaste.addEventListener('input', () => void renderOpenShards());
 dropzone($('shard-drop'), (files) => appendText(shardPaste, files, () => void renderOpenShards()));
 openPass.addEventListener('input', updateOpenBtn);
 
-function canUseShards() { return Boolean(target?.h.shamir && validShards.length >= target.h.shamir.k); }
+function quorum() { return Boolean(target?.h.shamir && validShards.length >= target.h.shamir.k); }
 function updateOpenBtn() {
-  $<HTMLButtonElement>('open-btn').disabled = !target || !(canUseShards() || (target.h.pass && openPass.value));
+  const t = slotTypes();
+  const pass = Boolean(openPass.value);
+  const ok = (quorum() && t.includes('shards')) || (pass && t.includes('pass')) || (quorum() && pass && t.includes('shards+pass'));
+  $<HTMLButtonElement>('open-btn').disabled = !target || !ok;
 }
 
-$('open-btn').addEventListener('click', (e) => busy(e.currentTarget as HTMLButtonElement, 'Opening…', async () => {
+async function doOpen(unlock: Unlock) {
   if (!target) return;
   clearResult();
-  opened = await open(target, canUseShards() ? { shards: validShards } : { passphrase: openPass.value });
+  opened = await engine('open', target, unlock);
   openPass.value = '';
   showResult(opened, target);
+}
+$('open-btn').addEventListener('click', (e) => busy(e.currentTarget as HTMLButtonElement, 'Opening…', async () => {
+  const t = slotTypes();
+  const unlock: Unlock = {};
+  if (quorum()) unlock.shards = validShards;
+  if (openPass.value && (t.includes('pass') || t.includes('shards+pass'))) unlock.passphrase = openPass.value;
+  await doOpen(unlock);
 }).then(updateOpenBtn));
 
-function showResult(p: Plain, f: VaultFile) {
+$('open-passkey').addEventListener('click', (e) => {
+  const slot = target?.h.slots.find((s) => s.type === 'passkey');
+  if (!slot) return;
+  const prfP = passkey.prf(slot.cred!, fromB64(slot.salt!)); // started inside the gesture (Safari)
+  prfP.catch(() => {});
+  void busy(e.currentTarget as HTMLButtonElement, 'Touch your passkey…', async () => doOpen({ prf: await prfP }));
+});
+
+// ---- Result + auto-clear ----
+const AUTO_CLEAR_S = 300;
+let clearAt = 0;
+let hiddenAt = 0;
+const VIA: Record<SlotType, string> = { shards: 'shards', pass: 'passphrase', 'shards+pass': 'shards + passphrase', passkey: 'passkey' };
+
+function showResult(p: NonNullable<typeof opened>, f: VaultFile) {
   $('open-result').hidden = false;
-  $('result-sub').textContent = `${f.h.label || 'Untitled vault'} · ${f.h.id} · sealed ${fmtDate(f.h.created)}`;
+  $('result-sub').textContent = `${f.h.label || 'Untitled vault'} · ${f.h.id} · unlocked with ${VIA[p.via]}`;
   const isText = p.meta.kind === 'text';
   $('result-text').hidden = !isText;
   $('result-file').hidden = isText;
   if (isText) {
     $('result-title').textContent = 'Vault opened';
     const pre = $('result-pre');
-    pre.textContent = new TextDecoder().decode(p.data);
+    pre.textContent = dec.decode(p.data);
     pre.classList.add('blurred');
   } else {
     $('result-title').textContent = 'File recovered';
     $('result-file-name').textContent = p.meta.name;
     $('result-file-meta').textContent = `${fmtBytes(p.meta.size)} · ${p.meta.type}`;
   }
+  $('result-bad').hidden = !p.bad.length;
+  if (p.bad.length) {
+    const many = p.bad.length > 1;
+    $('result-bad-text').replaceChildren(h('strong', {}, `Forged or corrupted shard${many ? 's' : ''} ${listIdx(p.bad)}. `),
+      `${many ? 'They were' : 'It was'} set aside and the vault opened from the others. Whoever holds ${many ? 'them' : 'it'} has a bad copy, or tampered with it. Consider re-keying.`);
+    for (const i of p.bad) {
+      const chip = document.querySelector(`#shard-chips [data-i="${i}"]`);
+      chip?.classList.add('bad');
+      chip?.replaceChildren(icon('alert'), `#${i} · forged`);
+    }
+    log(`Forged/corrupted shards detected: ${listIdx(p.bad)}`);
+  }
+  clearAt = Date.now() + AUTO_CLEAR_S * 1000;
+  tickTimer();
   toast('Vault opened.');
   $('open-result').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
@@ -639,15 +897,129 @@ function clearResult() {
   $('result-pre').textContent = '';
   $('open-result').hidden = true;
 }
-$('result-reveal').addEventListener('click', () => $('result-pre').classList.toggle('blurred'));
-$('result-copy').addEventListener('click', () => opened && void copy(new TextDecoder().decode(opened.data), 'Secret copied. Clear your clipboard when done.'));
-$('result-download').addEventListener('click', () => opened && download(opened.meta.name, opened.data as Uint8Array<ArrayBuffer>, opened.meta.type));
-$('result-clear').addEventListener('click', () => {
+function clearAll(msg: string) {
   clearResult();
   shardPaste.value = '';
   openPass.value = '';
   void renderOpenShards();
-  toast('Cleared from memory.');
+  toast(msg);
+}
+function tickTimer() {
+  if (!opened) return;
+  const left = Math.max(0, Math.round((clearAt - Date.now()) / 1000));
+  if (left === 0) return clearAll('Decrypted data auto-cleared after 5 minutes.');
+  $('result-timer').querySelector('span')!.textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+}
+setInterval(tickTimer, 1000);
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) hiddenAt = Date.now();
+  else if (opened && hiddenAt && Date.now() - hiddenAt > 60_000) clearAll('Cleared decrypted data: the tab was in the background for over a minute.');
+});
+
+$('result-reveal').addEventListener('click', () => $('result-pre').classList.toggle('blurred'));
+$('result-copy').addEventListener('click', () => opened && void copy(dec.decode(opened.data), 'Secret copied.', 45));
+$('result-download').addEventListener('click', () => opened && download(opened.meta.name, opened.data as Uint8Array<ArrayBuffer>, opened.meta.type));
+$('result-clear').addEventListener('click', () => clearAll('Cleared from memory.'));
+$('result-rekey').addEventListener('click', () => {
+  if (!opened || !target) return;
+  setRekey({ label: target.h.label || target.h.id, id: target.h.id, where: targetWhere });
+  if (opened.meta.kind === 'text') {
+    kind.set('text');
+    secretText.value = dec.decode(opened.data);
+    updateTextCount();
+  } else {
+    kind.set('file');
+    stage({ name: opened.meta.name, type: opened.meta.type, data: opened.data.slice() });
+  }
+  labelEl.value = target.h.label;
+  clearResult();
+  show('seal');
+  toast('Choose new keys, then seal.');
+});
+
+// ================= QR scanner =================
+type Detector = { detect: (v: HTMLVideoElement) => Promise<{ rawValue: string }[]> };
+let scanStop: (() => void) | null = null;
+
+async function startScan(area: HTMLTextAreaElement, after: () => void) {
+  if (!navigator.mediaDevices?.getUserMedia) throw new VaultError('Camera access is not available in this browser.');
+  const dialog = $<HTMLDialogElement>('scan-dialog');
+  const video = $<HTMLVideoElement>('scan-video');
+  const chips = $('scan-chips');
+  const status = $('scan-status');
+  chips.replaceChildren();
+  status.textContent = 'Starting camera…';
+  dialog.showModal();
+  let stream: MediaStream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+  } catch (e) {
+    dialog.close();
+    throw new VaultError((e as DOMException).name === 'NotAllowedError' ? 'Camera permission was denied.' : 'No usable camera was found.');
+  }
+  video.srcObject = stream;
+  await video.play().catch(() => {});
+
+  let detector: Detector | null = null;
+  const BD = (window as { BarcodeDetector?: { new (o: object): Detector; getSupportedFormats(): Promise<string[]> } }).BarcodeDetector;
+  if (BD) try { if ((await BD.getSupportedFormats()).includes('qr_code')) detector = new BD({ formats: ['qr_code'] }); } catch { /* use jsQR */ }
+  status.textContent = `Point the camera at a shard's QR code. Scanning with ${detector ? 'the native detector' : 'jsQR'}.`;
+
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
+  const seen = new Set(shardTokens(area.value));
+  let running = true;
+  const loop = async () => {
+    if (!running) return;
+    if (video.readyState >= 2 && video.videoWidth) {
+      let texts: string[] = [];
+      try {
+        if (detector) texts = (await detector.detect(video)).map((c) => c.rawValue);
+        else {
+          const w = Math.min(640, video.videoWidth);
+          const hh = Math.round((video.videoHeight * w) / video.videoWidth);
+          canvas.width = w; canvas.height = hh;
+          ctx.drawImage(video, 0, 0, w, hh);
+          const r = jsQR(ctx.getImageData(0, 0, w, hh).data, w, hh, { inversionAttempts: 'dontInvert' });
+          if (r) texts = [r.data];
+        }
+      } catch { /* frame not ready */ }
+      for (const tok of texts.flatMap(shardTokens)) {
+        if (seen.has(tok)) continue;
+        seen.add(tok);
+        try {
+          const s = await parseShard(tok);
+          area.value = [area.value.trim(), tok].filter(Boolean).join('\n');
+          chips.append(h('li', { class: 'chip' }, icon('check'), `#${s.i}/${s.n} · ${s.id.slice(0, 6)}`));
+          status.textContent = `Got shard #${s.i}. Show the next one, or press Done.`;
+          navigator.vibrate?.(60);
+          const view = video.parentElement!;
+          view.classList.add('hit');
+          setTimeout(() => view.classList.remove('hit'), 500);
+          after();
+        } catch {
+          chips.append(h('li', { class: 'chip bad' }, icon('alert'), 'damaged QR'));
+        }
+      }
+    }
+    setTimeout(loop, detector ? 120 : 220);
+  };
+  void loop();
+  scanStop = () => {
+    running = false;
+    stream.getTracks().forEach((t) => t.stop());
+    video.srcObject = null;
+    scanStop = null;
+  };
+}
+$('scan-done').addEventListener('click', () => $<HTMLDialogElement>('scan-dialog').close());
+$('scan-dialog').addEventListener('close', () => scanStop?.());
+document.querySelectorAll<HTMLButtonElement>('[data-scan]').forEach((b) => {
+  b.hidden = !navigator.mediaDevices?.getUserMedia;
+  b.addEventListener('click', () => {
+    const id = b.dataset.scan!;
+    startScan($<HTMLTextAreaElement>(id), id === 'verify-paste' ? () => void runVerify() : () => void renderOpenShards()).catch(fail);
+  });
 });
 
 // ================= VAULT =================
@@ -670,7 +1042,7 @@ function emptyState(title: string, sub: string, action?: [string, () => void]) {
 let vaultGen = 0;
 async function renderVault() {
   const gen = ++vaultGen;
-  const where = vaultSrc.get();
+  const where = vaultSrc.get() as 'local' | 'cloud';
   let rows: Row[] = [];
   try {
     if (where === 'local') {
@@ -705,13 +1077,7 @@ async function renderVault() {
       h('div', { class: 'tags' }, ...r.tags),
       h('div', { class: 'record-actions' },
         button('Open', 'unlock', async () => {
-          try {
-            const f = await r.get();
-            if (!f) throw new VaultError('Record not found.');
-            show('open');
-            pick.value = `${where}:${r.id}`;
-            setTarget(f, where === 'local' ? 'this device' : 'cloud');
-          } catch (e) { fail(e); }
+          try { show('open'); await loadRecord(where, r.id); } catch (e) { fail(e); }
         }),
         button('Export', 'download', async () => { try { const f = await r.get(); if (f) downloadVault(f); } catch (e) { fail(e); } }),
         button('Delete', 'trash', async () => {
@@ -730,7 +1096,7 @@ dropzone($('import-input').parentElement!, async (files) => {
       fail((e as DOMException).name === 'ConstraintError' ? new VaultError(`${f.name} is already on this device.`) : e);
     }
   }
-  if (ok) { toast(`Imported ${ok} vault${ok > 1 ? 's' : ''}.`); vaultSrc.set('local'); }
+  if (ok) { toast(`Imported ${plural(ok, 'vault')}.`); vaultSrc.set('local'); }
 });
 
 // ================= VERIFY =================
@@ -747,25 +1113,34 @@ async function runVerify() {
     $('verdict-title').textContent = title;
     $('verdict-sub').textContent = sub;
   };
-  $('verify-chips').replaceChildren(...parsed.map((p) => p.shard
-    ? h('li', { class: 'chip' }, icon('check'), `#${p.shard.i}/${p.shard.n} · ${p.shard.id.slice(0, 6)}`)
-    : h('li', { class: 'chip bad', title: p.error }, icon('alert'), 'checksum failed')));
+  const renderChips = (bad: number[] = []) => $('verify-chips').replaceChildren(...parsed.map((p) => !p.shard
+    ? h('li', { class: 'chip bad', title: p.error }, icon('alert'), 'checksum failed')
+    : bad.includes(p.shard.i)
+      ? h('li', { class: 'chip bad', title: 'Valid checksum, but its share does not fit the others' }, icon('alert'), `#${p.shard.i}/${p.shard.n} · forged`)
+      : h('li', { class: 'chip' }, icon('check'), `#${p.shard.i}/${p.shard.n} · ${p.shard.id.slice(0, 6)}`)));
+  renderChips();
   if (!parsed.length) return set('idle', 'shield', 'Waiting for shards', 'Results appear here as you add shards.');
 
   const good = parsed.flatMap((p) => (p.shard ? [p.shard] : []));
-  const bad = parsed.length - good.length;
+  const damaged = parsed.length - good.length;
   const ids = new Set(good.map((s) => s.id));
   if (!good.length) return set('bad', 'alert', 'No valid shards', 'Every shard failed its checksum. Look for typos or damaged copies.');
   if (ids.size > 1) return set('bad', 'alert', 'Mixed shard sets', `These shards come from ${ids.size} different vaults. Verify one set at a time.`);
   const { k, n, id } = good[0];
   const have = new Set(good.map((s) => s.i)).size;
-  const badNote = bad ? ` ${bad} damaged shard${bad > 1 ? 's' : ''} ignored.` : '';
-  if (have < k) return set('partial', 'shard', `${have} of ${k} shards`, `Each one passes its checksum. Add ${k - have} more from this set to confirm recovery works.${badNote}`);
+  const damagedNote = damaged ? ` ${plural(damaged, 'damaged shard')} ignored.` : '';
+  if (have < k) return set('partial', 'shard', `${have} of ${k} shards`, `Each one passes its checksum. Add ${k - have} more from this set to confirm recovery works.${damagedNote}`);
   try {
-    await verifyShards(good);
+    const { bad } = await engine('verifyShards', good);
     if (gen !== verifyGen) return;
-    set('ok', 'check', 'Recovery confirmed', `These shards rebuild the key for vault ${id}. Any ${k} of the ${n} will open it.${badNote}`);
-    log(`Verified shard set for ${id}`);
+    renderChips(bad);
+    if (bad.length) {
+      set('partial', 'alert', 'Recovery works, but a shard is forged', `The key rebuilds for vault ${id}, but shard${bad.length > 1 ? 's' : ''} ${listIdx(bad)} ${bad.length > 1 ? "don't" : "doesn't"} fit. ${bad.length > 1 ? 'They have' : 'It has'} a valid checksum, so ${bad.length > 1 ? 'they were' : 'it was'} probably altered on purpose. Re-key this vault.${damagedNote}`);
+      log(`Verify: forged shards ${listIdx(bad)} in set ${id}`);
+    } else {
+      set('ok', 'check', 'Recovery confirmed', `These shards rebuild the key for vault ${id}. Any ${k} of the ${n} will open it.${damagedNote}`);
+      log(`Verified shard set for ${id}`);
+    }
   } catch (e) {
     set('bad', 'alert', 'Recovery failed', (e as Error).message);
   }
@@ -795,7 +1170,7 @@ async function refreshAirgapStatus() {
 }
 airToggle.addEventListener('change', async () => {
   if (airToggle.checked) {
-    if (!(await confirmDialog('Turn on air-gap?', 'This tab will be cut off from the network. That stays true even if you change your mind, until you turn this off and reload. Cloud sync stops. It stays on for future visits.', 'Cut the network'))) {
+    if (!(await confirmDialog('Turn on air-gap?', 'This tab will be cut off from the network. That stays true even if you change your mind, until you turn this off and reload. Cloud sync stops. Passkeys still work, since they never use the network. It stays on for future visits.', 'Cut the network'))) {
       airToggle.checked = false;
       return;
     }
@@ -852,11 +1227,59 @@ $('auth-signout').addEventListener('click', (e) => busy(e.currentTarget as HTMLB
 }));
 cloud.onChange(() => { void refreshAccount(); void refreshDest(); });
 
+function refreshPasskeyCard() {
+  const st = $('passkey-status');
+  const saved = passkey.saved;
+  const reg = $<HTMLButtonElement>('passkey-register');
+  reg.disabled = !passkey.supported;
+  $('passkey-forget').hidden = !saved;
+  st.className = saved ? 'status on-ok' : 'status';
+  st.textContent = !passkey.supported ? '○ Not available here. Passkeys need the HTTPS site (not the offline file).'
+    : saved ? `● Registered ${fmtDate(saved.created)} for ${saved.rp}. Available as a key slot when sealing.`
+    : '○ No passkey registered on this browser.';
+  reg.lastChild!.textContent = saved ? 'Register another' : 'Register passkey';
+}
+$('passkey-register').addEventListener('click', (e) => {
+  const p = passkey.register(); // started inside the gesture (Safari)
+  p.catch(() => {});
+  void busy(e.currentTarget as HTMLButtonElement, 'Waiting for authenticator…', async () => {
+    await p;
+    toast('Passkey registered. Pick it as a key slot when sealing.');
+    refreshPasskeyCard();
+    refreshPasskeyMethod();
+  });
+});
+$('passkey-forget').addEventListener('click', async () => {
+  if (!(await confirmDialog('Forget this passkey here?', 'This browser will stop offering it for new vaults. Existing vaults still list its id and keep working with it. To delete the passkey itself, use your OS or password manager.', 'Forget'))) return;
+  passkey.saved = null;
+  refreshPasskeyCard();
+  refreshPasskeyMethod();
+});
+
+function trustedTypesEnforced(): boolean {
+  const csp = document.querySelector<HTMLMetaElement>('meta[http-equiv="Content-Security-Policy"]')?.content ?? '';
+  return 'trustedTypes' in window && csp.includes('require-trusted-types-for');
+}
+function renderEngine() {
+  const BD = 'BarcodeDetector' in window;
+  const rows: [string, string, boolean][] = [
+    ['Crypto isolation', worker ? 'Dedicated Web Worker' : 'Main thread (fallback)', Boolean(worker)],
+    ['Secure context', isSecureContext ? 'Yes' : 'No', isSecureContext],
+    ['Trusted Types', trustedTypesEnforced() ? 'Enforced' : 'Not enforced by this browser', trustedTypesEnforced()],
+    ['Network', airGap.active ? 'Blocked (air-gap CSP)' : cloudConfigured ? 'Cloud backend only' : "connect-src 'none'", true],
+    ['Passkey PRF', passkey.supported ? 'Available' : 'Unavailable here', passkey.supported],
+    ['QR decoding', BD ? 'Native BarcodeDetector' : 'jsQR (bundled)', true],
+    ['Format', 'v2 · AES-256-GCM · HKDF-SHA256 · Argon2id · Shamir GF(2⁸)', true],
+    ['Build', `v${__APP_VERSION__}`, true],
+  ];
+  $('engine-info').replaceChildren(...rows.flatMap(([k, v, ok]) => [h('dt', {}, k), h('dd', { class: ok ? 'ok' : 'no' }, v)]));
+}
+
 async function refreshStorage() {
   const files = await local.list().catch(() => []);
   const persisted = await local.persisted().catch(() => false);
   const est = await navigator.storage?.estimate?.().catch(() => undefined);
-  $('storage-status').textContent = `${files.length} record${files.length === 1 ? '' : 's'} on this device`
+  $('storage-status').textContent = `${plural(files.length, 'record')} on this device`
     + (est?.usage ? ` · ${fmtBytes(est.usage)} used` : '')
     + (persisted ? ' · protected from automatic cleanup.' : ' · the browser may clear this storage under pressure, so export important vaults.');
 }
@@ -866,6 +1289,8 @@ $('wipe-local').addEventListener('click', async () => {
 });
 
 async function refreshSettings() {
+  refreshPasskeyCard();
+  renderEngine();
   await Promise.all([refreshAirgapStatus(), refreshAccount(), refreshStorage()]);
 }
 
@@ -880,14 +1305,13 @@ document.querySelectorAll<HTMLElement>('i[data-icon]').forEach((i) => setIcon(i,
 syncSliders();
 meter();
 updateNet();
+refreshPasskeyMethod();
 setTarget(null);
 const initial = location.hash.slice(1) as Tab;
 show(TABS.includes(initial) ? initial : 'seal');
-log(`Zero-Trust Vault ${__APP_VERSION__} ready${airGap.active ? ' · air-gapped' : ''}`);
+log(`Zero-Trust Vault ${__APP_VERSION__} ready · ${worker ? 'isolated crypto worker' : 'main-thread crypto'}${airGap.active ? ' · air-gapped' : ''}`);
 
-// Offline support when served over HTTPS. Trusted Types requires a policy for the worker URL.
+// Offline support when served over HTTPS (URL vetted by the Trusted Types default policy).
 if ('serviceWorker' in navigator && location.protocol === 'https:' && !airGap.active) {
-  const tt = (window as { trustedTypes?: { createPolicy: (n: string, p: object) => { createScriptURL: (u: string) => string } } }).trustedTypes;
-  const url = tt ? tt.createPolicy('sw', { createScriptURL: (u: string) => { if (u !== './sw.js') throw new TypeError('blocked'); return u; } }).createScriptURL('./sw.js') : './sw.js';
-  navigator.serviceWorker.register(url).catch(() => { /* offline support is best-effort */ });
+  navigator.serviceWorker.register('./sw.js').catch(() => { /* offline support is best-effort */ });
 }

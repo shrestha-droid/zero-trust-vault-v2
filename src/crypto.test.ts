@@ -1,11 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_BYTES, open, padme, parseShard, parseVaultFile, seal, shardTokens, verifyShards, type Plain } from './crypto';
+import {
+  describeSlots, encodeShard, MAX_BYTES, open, padme, parseShard, parseVaultFile, rand, seal, shardTokens, toB64, verifyShards,
+  type Plain,
+} from './crypto';
 
 const FAST = { m: 8192, t: 1, p: 1 }; // real default is 64 MiB; keep tests quick
 const enc = new TextEncoder();
+const dec = new TextDecoder();
 const text = (s: string): Plain => ({ meta: { kind: 'text', name: 'note.txt', type: 'text/plain', size: 0 }, data: enc.encode(s) });
 const roundTrip = (f: unknown) => parseVaultFile(JSON.stringify(f));
 const parseAll = (xs: string[]) => Promise.all(xs.map(parseShard));
+const passkey = () => ({ cred: 'Y3JlZA', salt: toB64(rand(32)), rp: 'vault.example', prf: rand(32) });
 
 describe('seal/open', () => {
   it('opens with exactly k shards, any subset', async () => {
@@ -13,7 +18,8 @@ describe('seal/open', () => {
     expect(shards).toHaveLength(5);
     for (const subset of [[0, 1, 2], [2, 3, 4], [0, 4, 2]]) {
       const out = await open(roundTrip(file), { shards: await parseAll(subset.map((i) => shards[i])) });
-      expect(new TextDecoder().decode(out.data)).toBe('hello');
+      expect(dec.decode(out.data)).toBe('hello');
+      expect(out.via).toBe('shards');
     }
   });
 
@@ -34,17 +40,46 @@ describe('seal/open', () => {
   it('passphrase alone opens a passphrase vault; wrong one fails', async () => {
     const { file, shards } = await seal(text('secret'), { passphrase: 'correct horse', kdf: FAST });
     expect(shards).toEqual([]);
-    expect(new TextDecoder().decode((await open(roundTrip(file), { passphrase: 'correct horse' })).data)).toBe('secret');
+    expect(dec.decode((await open(roundTrip(file), { passphrase: 'correct horse' })).data)).toBe('secret');
     await expect(open(file, { passphrase: 'wrong' })).rejects.toThrow(/Wrong passphrase/);
   });
 
   it('"either" policy opens with shards or passphrase', async () => {
     const { file, shards } = await seal(text('both'), { shards: { k: 2, n: 3 }, passphrase: 'pw', kdf: FAST });
-    expect((await open(file, { passphrase: 'pw' })).data).toEqual(enc.encode('both'));
-    expect((await open(file, { shards: await parseAll(shards.slice(1)) })).data).toEqual(enc.encode('both'));
+    expect((await open(file, { passphrase: 'pw' })).via).toBe('pass');
+    expect((await open(file, { shards: await parseAll(shards.slice(1)) })).via).toBe('shards');
   });
 
-  it('detects tampering with header, ciphertext, and wrapped key', async () => {
+  it('"require both" needs shards AND passphrase — either alone fails', async () => {
+    const { file, shards } = await seal(text('2fa'), { shards: { k: 2, n: 3 }, passphrase: 'pw', requireBoth: true, kdf: FAST });
+    const keys = await parseAll(shards.slice(0, 2));
+    expect(file.h.slots.map((s) => s.type)).toEqual(['shards+pass']);
+    await expect(open(file, { shards: keys })).rejects.toThrow(/together/);
+    await expect(open(file, { passphrase: 'pw' })).rejects.toThrow(/together/);
+    await expect(open(file, { shards: keys, passphrase: 'nope' })).rejects.toThrow(/Wrong passphrase/);
+    const out = await open(roundTrip(file), { shards: keys, passphrase: 'pw' });
+    expect([dec.decode(out.data), out.via]).toEqual(['2fa', 'shards+pass']);
+  });
+
+  it('passkey slot opens with the matching PRF output only', async () => {
+    const pk = passkey();
+    const { file } = await seal(text('pk'), { shards: { k: 2, n: 2 }, passkey: { ...pk, prf: pk.prf.slice() } });
+    expect(file.h.slots.find((s) => s.type === 'passkey')).toMatchObject({ cred: pk.cred, rp: pk.rp, salt: pk.salt });
+    expect((await open(roundTrip(file), { prf: pk.prf.slice() })).via).toBe('passkey');
+    await expect(open(file, { prf: rand(32) })).rejects.toThrow(/passkey does not match/);
+    expect(describeSlots(file.h)).toBe('any 2 of 2 shards · or your passkey');
+  });
+
+  it('a slot moved to another vault does not unwrap (slot AAD binds vault id)', async () => {
+    const a = await seal(text('a'), { passphrase: 'pw', kdf: FAST });
+    const b = await seal(text('b'), { passphrase: 'pw', kdf: FAST });
+    const franken = structuredClone(b.file);
+    franken.h.slots = a.file.h.slots;
+    franken.h.kdf = a.file.h.kdf;
+    await expect(open(franken, { passphrase: 'pw' })).rejects.toThrow(/Wrong passphrase/);
+  });
+
+  it('detects tampering with header, ciphertext, and KDF params', async () => {
     const { file, shards } = await seal(text('tamper'), { shards: { k: 2, n: 2 }, passphrase: 'pw', kdf: FAST });
     const keys = await parseAll(shards);
     const relabeled = structuredClone(file); relabeled.h.label = 'evil';
@@ -52,8 +87,10 @@ describe('seal/open', () => {
     const flipped = structuredClone(file);
     flipped.ct = (flipped.ct[0] === 'A' ? 'B' : 'A') + flipped.ct.slice(1);
     await expect(open(flipped, { shards: keys })).rejects.toThrow(/modified/);
-    const weakened = structuredClone(file); weakened.h.pass!.kdf.t = 2;
+    const weakened = structuredClone(file); weakened.h.kdf!.t = 2;
     await expect(open(weakened, { passphrase: 'pw' })).rejects.toThrow(/Wrong passphrase|modified/);
+    const stripped = structuredClone(file); stripped.h.slots = stripped.h.slots.filter((s) => s.type === 'pass');
+    await expect(open(stripped, { passphrase: 'pw' })).rejects.toThrow(/modified/);
   });
 
   it('round-trips binary files byte-exact', async () => {
@@ -65,9 +102,10 @@ describe('seal/open', () => {
   });
 
   it('rejects bad policies and oversized payloads', async () => {
-    await expect(seal(text('x'), {})).rejects.toThrow(/Choose/);
+    await expect(seal(text('x'), {})).rejects.toThrow(/at least one/);
     await expect(seal(text('x'), { shards: { k: 1, n: 3 } })).rejects.toThrow(/Threshold/);
     await expect(seal(text('x'), { shards: { k: 4, n: 3 } })).rejects.toThrow(/Threshold/);
+    await expect(seal(text('x'), { passphrase: 'pw', requireBoth: true })).rejects.toThrow(/needs shards/);
     const big = { meta: text('').meta, data: { length: MAX_BYTES + 1 } as Uint8Array };
     await expect(seal(big, { passphrase: 'x' })).rejects.toThrow(/100 MB/);
   });
@@ -85,7 +123,21 @@ describe('shards', () => {
 
   it('verifies a shard set without the vault', async () => {
     const { shards } = await seal(text('x'), { shards: { k: 3, n: 4 } });
-    await expect(verifyShards(await parseAll(shards.slice(1)))).resolves.toBeUndefined();
+    await expect(verifyShards(await parseAll(shards.slice(1)))).resolves.toEqual({ bad: [] });
+  });
+
+  // A malicious holder can produce a shard with a *valid* checksum but a forged share.
+  it('identifies a forged shard and still recovers with k+1 shards', async () => {
+    const { file, shards } = await seal(text('cheat'), { shards: { k: 3, n: 5 } });
+    const parsed = await parseAll(shards);
+    const forged = { ...parsed[1], share: parsed[1].share.slice() };
+    forged.share[0] ^= 0xff; // keep the x-coordinate (last byte) intact
+    const evil = await parseShard(await encodeShard(forged));
+    const set = [parsed[0], evil, parsed[2], parsed[3]];
+    await expect(verifyShards(set)).resolves.toEqual({ bad: [2] });
+    const out = await open(file, { shards: set });
+    expect([dec.decode(out.data), out.bad]).toEqual(['cheat', [2]]);
+    await expect(open(file, { shards: [parsed[0], evil, parsed[2]] })).rejects.toThrow(/damaged, forged/);
   });
 
   it('extracts shard tokens from messy pasted text', async () => {
@@ -95,12 +147,16 @@ describe('shards', () => {
 });
 
 describe('parseVaultFile', () => {
-  it('rejects v1 records, junk, and dangerous KDF params', async () => {
+  it('rejects v1 records, junk, missing slots, and dangerous KDF params', async () => {
     expect(() => parseVaultFile('{"iv":[1],"ciphertext":[2]}')).toThrow(/v1 record/);
     expect(() => parseVaultFile('nope')).toThrow(/invalid JSON/);
     expect(() => parseVaultFile('{"h":{"v":3}}')).toThrow(/newer version/);
     const { file } = await seal(text('x'), { passphrase: 'pw', kdf: FAST });
-    const evil = structuredClone(file); evil.h.pass!.kdf.m = 64 * 1024 * 1024;
+    const noSlots = structuredClone(file); noSlots.h.slots = [];
+    expect(() => roundTrip(noSlots)).toThrow(/Not a valid/);
+    const orphan = structuredClone(file); orphan.h.slots[0].type = 'shards';
+    expect(() => roundTrip(orphan)).toThrow(/Not a valid/);
+    const evil = structuredClone(file); evil.h.kdf!.m = 64 * 1024 * 1024;
     await expect(open(evil, { passphrase: 'pw' })).rejects.toThrow(/key-derivation/);
   });
 });

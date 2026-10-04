@@ -39,7 +39,13 @@
       <div class="hero">
         <p class="eyebrow">Encrypt</p>
         <h1>Seal something <em>only you</em> can open.</h1>
-        <p class="lede">Encrypted in this tab with AES-256-GCM. The key is split into shards and never stored: not on this device, not on any server.</p>
+        <p class="lede">Encrypted with AES-256-GCM inside an isolated worker. The key never touches this page and is never stored: not on this device, not on any server.</p>
+      </div>
+
+      <div class="callout info" id="rekey-banner" hidden>
+        <i data-icon="refresh"></i>
+        <div><strong>Re-keying <span id="rekey-name"></span>.</strong> Sealing creates a brand-new key and new shards. Afterwards you'll be offered to delete the old copy, so the old shards stop working.</div>
+        <button class="btn ghost sm" id="rekey-cancel" type="button">Cancel</button>
       </div>
 
       <div class="layout">
@@ -80,13 +86,21 @@
           <article class="card step">
             <header class="step-head">
               <span class="step-n">2</span>
-              <div><h2>Who can open it?</h2><p>Split the key between people or places, use a passphrase, or both.</p></div>
+              <div><h2>Who can open it?</h2><p>Pick one or more keys. Each is an independent key slot.</p></div>
             </header>
-            <div class="seg wide" role="radiogroup" aria-label="Unlock policy" id="policy">
-              <button role="radio" data-v="shards" aria-checked="true"><i data-icon="shard"></i>Shards</button>
-              <button role="radio" data-v="pass" aria-checked="false"><i data-icon="key"></i>Passphrase</button>
-              <button role="radio" data-v="either" aria-checked="false"><i data-icon="branch"></i>Either</button>
+            <div class="methods" role="group" aria-label="Unlock methods">
+              <label class="method"><input type="checkbox" id="m-shards" checked>
+                <i data-icon="shard"></i><strong>Shards</strong><span>K of N, split between people or places</span></label>
+              <label class="method"><input type="checkbox" id="m-pass">
+                <i data-icon="key"></i><strong>Passphrase</strong><span>Argon2id, 64 MiB memory-hard</span></label>
+              <label class="method" id="m-passkey-card"><input type="checkbox" id="m-passkey">
+                <i data-icon="fingerprint"></i><strong>Passkey</strong><span id="m-passkey-sub">Touch ID, Windows Hello, security key</span></label>
             </div>
+            <div class="both-row" id="both-row" hidden>
+              <label class="switch"><input type="checkbox" id="require-both"><span></span><span class="sr-only">Require shards and passphrase together</span></label>
+              <div><strong>Require shards <em>and</em> passphrase together</strong><span class="hint">Two-factor: stolen shards alone are useless, and so is a leaked passphrase. When off, either one opens the vault.</span></div>
+            </div>
+            <p class="rule" id="rule"></p>
 
             <div id="shard-config" class="stack">
               <div class="sliders">
@@ -142,10 +156,11 @@
           <h3>Summary</h3>
           <dl class="kv" id="summary"></dl>
           <ul class="props">
-            <li><i data-icon="check"></i>AES-256-GCM authenticated encryption</li>
-            <li><i data-icon="check"></i>Shamir sharing via an independently audited library</li>
-            <li><i data-icon="check"></i>Header is tamper-evident (bound as AAD)</li>
-            <li><i data-icon="check"></i>Size hidden with Padmé padding</li>
+            <li><i data-icon="check"></i>AES-256-GCM, run in an isolated Web Worker</li>
+            <li><i data-icon="check"></i>LUKS-style key slots, each bound to this vault</li>
+            <li><i data-icon="check"></i>Audited Shamir sharing with forged-shard detection</li>
+            <li><i data-icon="check"></i>Tamper-evident header; size hidden (Padmé)</li>
+            <li><i data-icon="check"></i>Post-quantum: no public-key crypto in the format</li>
           </ul>
           <button class="btn primary lg block" id="seal-btn"><i data-icon="lock"></i><span>Seal vault</span></button>
           <p class="fine">Nothing leaves this tab until you seal, and then only ciphertext does.</p>
@@ -158,7 +173,7 @@
       <div class="hero">
         <p class="eyebrow">Decrypt</p>
         <h1>Open a vault.</h1>
-        <p class="lede">Bring the vault and enough shards, or its passphrase. Everything is decrypted in memory, here.</p>
+        <p class="lede">Bring the vault and its keys: shards, passphrase, or passkey. Forged or corrupted shards are detected and set aside automatically.</p>
       </div>
 
       <div class="layout even">
@@ -181,19 +196,27 @@
               <div class="ring" id="ring"><svg viewBox="0 0 44 44" aria-hidden="true"><circle cx="22" cy="22" r="19" class="track"/><circle cx="22" cy="22" r="19" class="fill" pathLength="100"/></svg><span id="ring-text">0</span></div>
               <div><strong id="quorum-title">No shards yet</strong><p class="hint" id="quorum-sub">Drop .key files or paste shards below.</p></div>
             </div>
-            <label class="drop compact slim" id="shard-drop">
-              <input type="file" id="shard-input" class="sr-only" multiple accept=".key,.txt,text/plain">
-              <i data-icon="shard"></i><span>Drop .key files or click</span>
-            </label>
+            <div class="row gap">
+              <label class="drop compact slim grow" id="shard-drop">
+                <input type="file" id="shard-input" class="sr-only" multiple accept=".key,.txt,text/plain">
+                <i data-icon="shard"></i><span>Drop .key files or click</span>
+              </label>
+              <button class="btn ghost scan-btn" type="button" data-scan="shard-paste"><i data-icon="camera"></i>Scan QR</button>
+            </div>
             <textarea id="shard-paste" rows="3" spellcheck="false" autocomplete="off" placeholder="…or paste shards here, one per line"></textarea>
             <ul class="chips" id="shard-chips" aria-live="polite"></ul>
           </div>
-          <div class="or" id="unlock-or"><span>or</span></div>
+          <div class="or" id="unlock-or"><span id="unlock-or-text">or</span></div>
           <div class="field" id="unlock-pass">
             <label for="open-pass">Passphrase</label>
             <input type="password" id="open-pass" autocomplete="current-password" spellcheck="false">
           </div>
           <button class="btn primary lg block" id="open-btn" disabled><i data-icon="unlock"></i><span>Open vault</span></button>
+          <div id="unlock-passkey" class="stack" hidden>
+            <div class="or"><span>or</span></div>
+            <button class="btn ghost lg block" id="open-passkey" type="button"><i data-icon="fingerprint"></i><span>Unlock with passkey</span></button>
+            <p class="hint center" id="passkey-open-hint"></p>
+          </div>
         </article>
       </div>
 
@@ -201,8 +224,11 @@
         <header class="result-head">
           <div class="badge ok"><i data-icon="check"></i></div>
           <div><h2 id="result-title">Vault opened</h2><p class="hint" id="result-sub"></p></div>
+          <span class="tag timer" id="result-timer" title="Decrypted data is wiped automatically"><i data-icon="clock"></i><span></span></span>
+          <button class="btn ghost sm" id="result-rekey" title="Re-seal with a new key and new shards"><i data-icon="refresh"></i>Re-key</button>
           <button class="btn ghost sm" id="result-clear"><i data-icon="x"></i>Clear from memory</button>
         </header>
+        <div class="callout warn" id="result-bad" hidden><i data-icon="alert"></i><div id="result-bad-text"></div></div>
         <div id="result-text" hidden>
           <pre class="secret blurred" id="result-pre" tabindex="0"></pre>
           <div class="row gap">
@@ -258,7 +284,10 @@
             <i data-icon="shard" class="drop-icon"></i><strong>Drop .key files</strong><span>or click to browse</span>
           </label>
           <textarea id="verify-paste" rows="5" spellcheck="false" autocomplete="off" placeholder="…or paste shards, one per line"></textarea>
-          <div class="row gap"><button class="btn ghost sm" id="verify-clear"><i data-icon="x"></i>Clear</button></div>
+          <div class="row gap">
+            <button class="btn ghost sm scan-btn" type="button" data-scan="verify-paste"><i data-icon="camera"></i>Scan QR</button>
+            <button class="btn ghost sm" id="verify-clear"><i data-icon="x"></i>Clear</button>
+          </div>
         </article>
         <article class="card verdict" id="verdict" data-state="idle">
           <div class="verdict-icon"><i data-icon="shield"></i></div>
@@ -316,22 +345,37 @@
           <div class="row gap"><button class="btn danger" id="wipe-local"><i data-icon="trash"></i>Delete all local records</button></div>
         </article>
 
+        <article class="card" id="passkey-card">
+          <header class="card-head"><i data-icon="fingerprint"></i><h2>Passkey</h2></header>
+          <p>Use Touch ID, Face ID, Windows Hello, your phone or a security key as a vault key. The WebAuthn PRF extension derives a secret inside the authenticator. It never leaves the hardware, and each vault uses its own salt.</p>
+          <p class="status" id="passkey-status"></p>
+          <div class="row gap">
+            <button class="btn primary" id="passkey-register"><i data-icon="fingerprint"></i>Register passkey</button>
+            <button class="btn ghost" id="passkey-forget" hidden>Forget on this browser</button>
+          </div>
+        </article>
+
+        <article class="card">
+          <header class="card-head"><i data-icon="shield"></i><h2>Engine</h2></header>
+          <dl class="kv left" id="engine-info"></dl>
+        </article>
+
         <article class="card span-2 how">
           <header class="card-head"><i data-icon="shield"></i><h2>How it works</h2></header>
           <ol class="flow">
-            <li><b>Generate</b><span>A random 256-bit key is created in this tab from the OS's secure random generator.</span></li>
+            <li><b>Generate</b><span>A random 256-bit data key is created in an isolated worker, from the OS's secure random generator.</span></li>
             <li><b>Encrypt</b><span>Your data, file name and type are padded and sealed with AES-256-GCM. The header is authenticated too.</span></li>
-            <li><b>Split</b><span>The key is cut into N Shamir shards. Any K rebuild it, and fewer reveal nothing at all.</span></li>
-            <li><b>Forget</b><span>The key is wiped. Only shards (and an optional Argon2id-wrapped copy) can bring it back.</span></li>
+            <li><b>Slot</b><span>Each unlock method wraps the data key in its own key slot: Shamir shards, Argon2id passphrase, both together, or a hardware passkey.</span></li>
+            <li><b>Forget</b><span>Keys are wiped. Only a slot's key material, held by you, can bring them back.</span></li>
           </ol>
-          <p class="hint">Open source and verifiable. File format, threat model and limits are in the repository's README and SECURITY.md.</p>
+          <p class="hint">No public-key cryptography is used, so a future quantum computer has nothing to attack beyond brute force against AES-256. File format, threat model and limits are in the repository's README and SECURITY.md.</p>
         </article>
       </div>
     </section>
   </main>
 
   <footer class="foot">
-    <span>All cryptography runs in this tab · AES-256-GCM · Argon2id · Shamir</span>
+    <span>All cryptography runs on this device · AES-256-GCM · Argon2id · Shamir · WebAuthn PRF</span>
     <details class="log"><summary>Activity</summary><ol id="log"></ol></details>
   </footer>
 
@@ -350,6 +394,17 @@
       <span class="spacer"></span>
       <button class="btn primary" id="sealed-done">I've saved them</button>
     </footer>
+  </dialog>
+
+  <!-- QR scanner -->
+  <dialog id="scan-dialog" class="sheet narrow" aria-labelledby="scan-title">
+    <header class="sheet-head">
+      <div class="badge ok"><i data-icon="camera"></i></div>
+      <div><h2 id="scan-title">Scan shards</h2><p class="hint" id="scan-status">Point the camera at a shard's QR code.</p></div>
+    </header>
+    <div class="scan-view"><video id="scan-video" playsinline muted></video><div class="scan-frame" aria-hidden="true"></div></div>
+    <ul class="chips" id="scan-chips" aria-live="polite"></ul>
+    <footer class="sheet-foot"><span class="spacer"></span><button class="btn primary" id="scan-done">Done</button></footer>
   </dialog>
 
   <!-- Confirm -->
