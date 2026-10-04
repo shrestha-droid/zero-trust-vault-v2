@@ -1,548 +1,371 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ZERO-TRUST | Cryptographic Engine</title>
-
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-    <script>
-        /*! secrets.js-grempe 2019-09-07 */
-        !function(t,e){"use strict";"function"==typeof define&&define.amd?define([],function(){return t.secrets=e()}):"object"==typeof exports?module.exports=e(require("crypto")):t.secrets=e(t.crypto)}(this,function(n){"use strict";var u,b,i,a,s;function h(){u={bits:8,radix:16,minBits:3,maxBits:20,bytesPerChar:2,maxBytesPerChar:6,primitivePolynomials:[null,null,1,3,3,5,3,3,29,17,9,5,83,27,43,3,45,9,39,39,9,5,3,33,27,9,71,39,9,5,83]},b={},i=new Array(1024).join("0"),a=!0,s=["nodeCryptoRandomBytes","browserCryptoGetRandomValues","testRandom"]}function f(){return!(!b||!b.rng||"function"!=typeof b.rng)}function g(t,e){var r;if(0===e||1===e)return t;if(e&&1024<e)throw new Error("Padding must be multiples of no larger than 1024 bits.");return e=e||b.bits,t&&(r=t.length%e),r?(i+t).slice(-(e-r+t.length)):t}function c(t){var e,r,n="";for(r=t.length-1;0<=r;r--){if(e=parseInt(t[r],16),isNaN(e))throw new Error("Invalid hex character.");n=g(e.toString(2),4)+n}return n}function m(t){var e,r,n="";for(r=(t=g(t,4)).length;4<=r;r-=4){if(e=parseInt(t.slice(r-4,r),2),isNaN(e))throw new Error("Invalid binary character.");n=e.toString(16)+n}return n}function o(){return!(!n||"object"!=typeof n||"function"!=typeof n.getRandomValues&&"object"!=typeof n.getRandomValues||"function"!=typeof Uint32Array&&"object"!=typeof Uint32Array)}function l(){return"object"==typeof n&&"function"==typeof n.randomBytes}function p(t){function a(t,e,r,n){var i,a=0,o="";for(e&&(i=e.length-1);a<i||o.length<t;)o+=g(Math.abs(parseInt(e[a],r)).toString(2),n),a++;return((o=o.substr(-t)).match(/0/g)||[]).length===o.length?null:o}function e(t){var e,r=null;for(16,4,e=Math.ceil(t/8);null===r;)r=a(t,n.randomBytes(e).toString("hex"),16,4);return r}function r(t){var e,r=null;for(10,32,e=Math.ceil(t/32);null===r;)r=a(t,n.getRandomValues(new Uint32Array(e)),10,32);return r}return t&&"testRandom"===t?(b.typeCSPRNG=t,function(t){var e,r,n=null;r=Math.ceil(t/32),e=new Uint32Array(r);for(var i=0;i<e.length;i++)e[i]=123456789;for(;null===n;)n=a(t,e,10,32);return n}):t&&"nodeCryptoRandomBytes"===t?(b.typeCSPRNG=t,e):t&&"browserCryptoGetRandomValues"===t?(b.typeCSPRNG=t,r):l()?(b.typeCSPRNG="nodeCryptoRandomBytes",e):o()?(b.typeCSPRNG="browserCryptoGetRandomValues",r):void 0}function d(t,e){var r,n=[];for(e&&(t=g(t,e)),r=t.length;r>b.bits;r-=b.bits)n.push(parseInt(t.slice(r-b.bits,r),2));return n.push(parseInt(t.slice(0,r),2)),n}function w(t,e){var r,n=b.logs[t],i=0;for(r=e.length-1;0<=r;r--)i=0!==i?b.exps[(n+b.logs[i])%b.maxShares]^e[r]:e[r];return i}function y(t,e,r){var n,i,a,o,s=0;for(a=0,n=e.length;a<n;a++)if(r[a]){for(i=b.logs[r[a]],o=0;o<n;o++)if(a!==o){if(t===e[o]){i=-1;break}i=(i+b.logs[t^e[o]]-b.logs[e[a]^e[o]]+b.maxShares)%b.maxShares}s=-1===i?s:s^b.exps[i]}return s}function x(t,e,r){var n,i,a=[],o=[t];for(n=1;n<r;n++)o[n]=parseInt(b.rng(b.bits),2);for(i=e+(n=1);n<i;n++)a[n-1]={x:n,y:w(n,o)};return a}function v(t,e,r){var n,i,a,o;if(e=parseInt(e,b.radix),n=(t=parseInt(t,10)||b.bits).toString(36).toUpperCase(),o=(a=Math.pow(2,t)-1).toString(b.radix).length,i=g(e.toString(b.radix),o),"number"!=typeof e||e%1!=0||e<1||a<e)throw new Error("Share id must be an integer between 1 and "+a+", inclusive.");return n+i+r}var t={init:function(t,e){var r,n,i=[],a=[],o=1;if(h(),t&&("number"!=typeof t||t%1!=0||t<u.minBits||t>u.maxBits))throw new Error("Number of bits must be an integer between "+u.minBits+" and "+u.maxBits+", inclusive.");if(e&&-1===s.indexOf(e))throw new Error("Invalid RNG type argument : '"+e+"'");for(b.radix=u.radix,b.bits=t||u.bits,b.size=Math.pow(2,b.bits),b.maxShares=b.size-1,r=u.primitivePolynomials[b.bits],n=0;n<b.size;n++)i[a[n]=o]=n,(o<<=1)>=b.size&&(o^=r,o&=b.maxShares);if(b.logs=i,b.exps=a,e&&this.setRNG(e),f()||this.setRNG(),!(f()&&b.bits&&b.size&&b.maxShares&&b.logs&&b.exps&&b.logs.length===b.size&&b.exps.length===b.size))throw new Error("Initialization failed.")},combine:function(t,e){var r,n,i,a,o,s,h,u="",f=[],l=[];for(e=e||0,r=0,i=t.length;r<i;r++){if(s=this.extractShareComponents(t[r]),void 0===o)o=s.bits;else if(s.bits!==o)throw new Error("Mismatched shares: Different bit settings.");if(b.bits!==o&&this.init(o),-1===f.indexOf(s.id))for(f.push(s.id),n=0,a=(h=d(c(s.data))).length;n<a;n++)l[n]=l[n]||[],l[n][f.length-1]=h[n]}for(r=0,i=l.length;r<i;r++)u=g(y(e,f,l[r]).toString(2))+u;return m(1<=e?u:u.slice(u.indexOf("1")+1))},getConfig:function(){var t={};return t.radix=b.radix,t.bits=b.bits,t.maxShares=b.maxShares,t.hasCSPRNG=f(),t.typeCSPRNG=b.typeCSPRNG,t},extractShareComponents:function(t){var e,r,n,i,a,o={};if((e=parseInt(t.substr(0,1),36))&&("number"!=typeof e||e%1!=0||e<u.minBits||e>u.maxBits))throw new Error("Invalid share : Number of bits must be an integer between "+u.minBits+" and "+u.maxBits+", inclusive.");if(i=Math.pow(2,e)-1,n=(Math.pow(2,e)-1).toString(b.radix).length,(a=new RegExp("^([a-kA-K3-9]{1})([a-fA-F0-9]{"+n+"})([a-fA-F0-9]+)$").exec(t))&&(r=parseInt(a[2],b.radix)),"number"!=typeof r||r%1!=0||r<1||i<r)throw new Error("Invalid share : Share id must be an integer between 1 and "+b.maxShares+", inclusive.");if(a&&a[3])return o.bits=e,o.id=r,o.data=a[3],o;throw new Error("The share data provided is invalid : "+t)},setRNG:function(t){var e="Random number generator is invalid ",r=" Supply an CSPRNG of the form function(bits){} that returns a string containing 'bits' number of random 1's and 0's.";if(t&&"string"==typeof t&&-1===s.indexOf(t))throw new Error("Invalid RNG type argument : '"+t+"'");if((t=t||p())&&"string"==typeof t&&(t=p(t)),a){if(t&&"function"!=typeof t)throw new Error(e+"(Not a function)."+r);if(t&&"string"!=typeof t(b.bits))throw new Error(e+"(Output is not a string)."+r);if(t&&!parseInt(t(b.bits),2))throw new Error(e+"(Binary string output not parseable to an Integer)."+r);if(t&&t(b.bits).length>b.bits)throw new Error(e+"(Output length is greater than config.bits)."+r);if(t&&t(b.bits).length<b.bits)throw new Error(e+"(Output length is less than config.bits)."+r)}return b.rng=t,!0},str2hex:function(t,e){var r,n,i,a,o,s,h="";if("string"!=typeof t)throw new Error("Input must be a character string.");if("number"!=typeof(e=e||u.bytesPerChar)||e<1||e>u.maxBytesPerChar||e%1!=0)throw new Error("Bytes per character must be an integer between 1 and "+u.maxBytesPerChar+", inclusive.");for(r=2*e,n=Math.pow(16,r)-1,o=0,s=t.length;o<s;o++){if(a=t[o].charCodeAt(),isNaN(a))throw new Error("Invalid character: "+t[o]);if(n<a)throw i=Math.ceil(Math.log(a+1)/Math.log(256)),new Error("Invalid character code ("+a+"). Maximum allowable is 256^bytes-1 ("+n+"). To convert this character, use at least "+i+" bytes.");h=g(a.toString(16),r)+h}return h},hex2str:function(t,e){var r,n,i,a="";if("string"!=typeof t)throw new Error("Input must be a hexadecimal string.");if("number"!=typeof(e=e||u.bytesPerChar)||e%1!=0||e<1||e>u.maxBytesPerChar)throw new Error("Bytes per character must be an integer between 1 and "+u.maxBytesPerChar+", inclusive.");for(n=0,i=(t=g(t,r=2*e)).length;n<i;n+=r)a=String.fromCharCode(parseInt(t.slice(n,n+r),16))+a;return a},random:function(t){if("number"!=typeof t||t%1!=0||t<2||65536<t)throw new Error("Number of bits must be an Integer between 1 and 65536.");return m(b.rng(t))},share:function(t,e,r,n){var i,a,o,s,h,u=new Array(e),f=new Array(e);if(n=n||128,"string"!=typeof t)throw new Error("Secret must be a string.");if("number"!=typeof e||e%1!=0||e<2)throw new Error("Number of shares must be an integer between 2 and 2^bits-1 ("+b.maxShares+"), inclusive.");if(e>b.maxShares)throw i=Math.ceil(Math.log(e+1)/Math.LN2),new Error("Number of shares must be an integer between 2 and 2^bits-1 ("+b.maxShares+"), inclusive. To create "+e+" shares, use at least "+i+" bits.");if("number"!=typeof r||r%1!=0||r<2)throw new Error("Threshold number of shares must be an integer between 2 and 2^bits-1 ("+b.maxShares+"), inclusive.");if(r>b.maxShares)throw i=Math.ceil(Math.log(r+1)/Math.LN2),new Error("Threshold number of shares must be an integer between 2 and 2^bits-1 ("+b.maxShares+"), inclusive.  To use a threshold of "+r+", use at least "+i+" bits.");if(e<r)throw new Error("Threshold number of shares was "+r+" but must be less than or equal to the "+e+" shares specified as the total to generate.");if("number"!=typeof n||n%1!=0||n<0||1024<n)throw new Error("Zero-pad length must be an integer between 0 and 1024 inclusive.");for(o=0,h=(t=d(t="1"+c(t),n)).length;o<h;o++)for(a=x(t[o],e,r),s=0;s<e;s++)u[s]=u[s]||a[s].x.toString(b.radix),f[s]=g(a[s].y.toString(2))+(f[s]||"");for(o=0;o<e;o++)u[o]=v(b.bits,u[o],m(f[o]));return u},newShare:function(t,e){var r;if(t&&"string"==typeof t&&(t=parseInt(t,b.radix)),r=t.toString(b.radix),t&&r&&e&&e[0])return v(this.extractShareComponents(e[0]).bits,r,this.combine(e,t));throw new Error("Invalid 'id' or 'shares' Array argument to newShare().")},_reset:h,_padLeft:g,_hex2bin:c,_bin2hex:m,_hasCryptoGetRandomValues:o,_hasCryptoRandomBytes:l,_getRNG:p,_isSetRNG:f,_splitNumStringToIntArray:d,_horner:w,_lagrange:y,_getShares:x,_constructPublicShareString:v};return t.init(),t});
-    </script>
-
-    <style>
-        :root {
-            --bg-pure: #000000;
-            --bg-input: #0a0a0a;
-            --fg-main: #e0e0e0;
-            --fg-muted: #666666;
-            --border-faint: #222222;
-            --border-focus: #ffffff;
-            --danger-text: #ff4444;
-            --danger-border: #441111;
-            --danger-bg: #110000;
-            --font-mono: 'Courier New', Courier, 'Liberation Mono', monospace;
-            --font-sans: system-ui, -apple-system, sans-serif;
-        }
-
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background-color: var(--bg-pure); color: var(--fg-main); font-family: var(--font-sans); min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 3rem 1.5rem; -webkit-font-smoothing: antialiased; }
-        label, .section-title { font-family: var(--font-mono); font-size: 0.65rem; color: var(--fg-muted); text-transform: uppercase; letter-spacing: 0.15em; }
-        .main-header { font-family: var(--font-sans); font-size: 1.0rem; font-weight: 500; letter-spacing: 0.15em; text-transform: uppercase; color: var(--fg-main); display: flex; align-items: center; gap: 0.75rem; }
-        .main-header::before { content: "■"; font-size: 0.8rem; }
-        .container { width: 100%; max-width: 800px; display: flex; flex-direction: column; gap: 1.75rem; animation: fadeIn 0.4s ease-out; }
-        
-        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
-        .form-group { display: flex; flex-direction: column; gap: 0.5rem; }
-        
-        input[type="text"], input[type="password"], input[type="email"], input[type="number"], textarea, select { background-color: var(--bg-input); border: 1px solid var(--border-faint); color: var(--fg-main); padding: 0.75rem 1rem; font-family: var(--font-mono); font-size: 0.8rem; border-radius: 0; transition: border-color 0.2s, background-color 0.2s; outline: none; width: 100%; }
-        input:focus, textarea:focus, select:focus { border-color: var(--border-focus); background-color: #000; }
-        input::placeholder, textarea::placeholder { color: #333333; }
-        
-        .radio-group { display: flex; align-items: center; gap: 2rem; padding: 0.25rem 0; }
-        .radio-label { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; color: var(--fg-main); font-size: 0.75rem; font-family: var(--font-mono); }
-        .radio-label input[type="radio"] { appearance: none; width: 12px; height: 12px; border: 1px solid var(--fg-muted); border-radius: 50%; background: transparent; cursor: pointer; padding: 0; display: grid; place-content: center; }
-        .radio-label input[type="radio"]::before { content: ""; width: 4px; height: 4px; border-radius: 50%; background: var(--fg-main); transform: scale(0); transition: transform 0.1s; }
-        .radio-label input[type="radio"]:checked { border-color: var(--fg-main); }
-        .radio-label input[type="radio"]:checked::before { transform: scale(1); }
-        
-        .action-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-top: 0.5rem; }
-        button { background-color: transparent; border: 1px solid var(--border-faint); color: var(--fg-main); padding: 0.9rem; font-family: var(--font-sans); font-size: 0.7rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.1em; cursor: pointer; border-radius: 0; transition: all 0.2s; }
-        button:hover { background-color: var(--border-faint); }
-        button.danger { border-color: var(--danger-border); color: var(--danger-text); }
-        button.danger:hover { background-color: var(--danger-bg); border-color: var(--danger-text); }
-        
-        .dropzone { border: 1px dashed var(--border-faint); padding: 1.2rem; text-align: center; cursor: pointer; color: var(--fg-muted); font-family: var(--font-mono); font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.1em; transition: all 0.2s; background: var(--bg-input); }
-        .dropzone:hover { color: var(--fg-main); border-color: var(--border-focus); }
-        
-        .terminal-container { border: 1px solid var(--border-faint); display: flex; flex-direction: column; margin-top: 0.5rem; }
-        .terminal-header { padding: 0.6rem 1rem; border-bottom: 1px dashed var(--border-faint); }
-        pre.console { padding: 1rem; font-family: var(--font-mono); font-size: 0.7rem; color: var(--fg-muted); max-height: 200px; overflow-y: auto; white-space: pre-wrap; line-height: 1.5; word-break: break-all; }
-        
-        .qr-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-top: 0.5rem; }
-        .qr-card { border: 1px solid var(--border-faint); padding: 0.75rem; text-align: center; display: flex; flex-direction: column; gap: 0.5rem; background: var(--bg-pure); }
-        
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        @media (max-width: 640px) { .grid-2 { grid-template-columns: 1fr; gap: 1rem; } .action-grid { grid-template-columns: 1fr; } }
-    </style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark light">
+  <meta name="referrer" content="no-referrer">
+  <meta name="description" content="Client-side, zero-knowledge encryption. Split keys into Shamir shards, harden passphrases with Argon2id, and keep vaults on your device or in the cloud. No server ever sees a key.">
+  <title>Zero-Trust Vault</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230b0d10'/%3E%3Cpath d='M16 5 26 11v10l-10 6-10-6V11z' fill='none' stroke='%2334d399' stroke-width='2.2' stroke-linejoin='round'/%3E%3Ccircle cx='16' cy='16' r='3' fill='%2334d399'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/src/style.css">
+  <script type="module" src="/src/main.ts"></script>
 </head>
 <body>
+  <div class="backdrop" aria-hidden="true"></div>
 
-    <div id="login-view" class="container" style="max-width: 480px; margin-top: 5vh;">
-        <div class="main-header">Authentication Perimeter</div>
-        <div class="form-group"><label>Identity (Corporate Email)</label><input type="email" id="auth-email" placeholder="agent@internal" autocomplete="off"></div>
-        <div class="form-group"><label>Session Passcode</label><input type="password" id="auth-password" placeholder="••••••••••••"></div>
-        <div class="grid-2" style="margin-top: 0.5rem;">
-            <button onclick="window.handleSignIn()">Establish Session</button>
-            <button onclick="window.handleSignUp()">Register Identity</button>
-        </div>
-        <button style="border-color: transparent; color: var(--fg-muted); margin-top: 0.5rem;" onclick="window.bypassToLocalMode()">
-            [ OVERRIDE: INITIATE LOCAL AIR-GAP MODE ]
-        </button>
-    </div>
+  <header class="topbar">
+    <a class="brand" href="#seal" aria-label="Zero-Trust Vault home">
+      <svg class="mark" viewBox="0 0 32 32" aria-hidden="true">
+        <path d="M16 3 27.3 9.5v13L16 29 4.7 22.5v-13z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+        <path d="M16 16V3M16 16l11.3 6.5M16 16 4.7 22.5" stroke="currentColor" stroke-width="1.6" opacity=".45"/>
+        <circle cx="16" cy="16" r="3.2" fill="currentColor"/>
+      </svg>
+      <span class="brand-text"><strong>Zero-Trust Vault</strong><small>v<span id="app-version"></span> · zero-knowledge</small></span>
+    </a>
+    <nav class="tabs" role="tablist" aria-label="Sections">
+      <button role="tab" id="tab-seal" data-tab="seal" aria-controls="view-seal"><i data-icon="lock"></i><span>Seal</span></button>
+      <button role="tab" id="tab-open" data-tab="open" aria-controls="view-open"><i data-icon="unlock"></i><span>Open</span></button>
+      <button role="tab" id="tab-vault" data-tab="vault" aria-controls="view-vault"><i data-icon="stack"></i><span>Vault</span></button>
+      <button role="tab" id="tab-verify" data-tab="verify" aria-controls="view-verify"><i data-icon="check"></i><span>Verify</span></button>
+      <button role="tab" id="tab-settings" data-tab="settings" aria-controls="view-settings"><i data-icon="gear"></i><span>Settings</span></button>
+    </nav>
+    <button class="net-chip" id="net-chip" data-state="online" title="Network status"><span class="dot"></span><span id="net-label">Online</span></button>
+  </header>
 
-    <div id="vault-view" class="container" style="display: none;">
-        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-faint); padding-bottom: 0.75rem;">
-            <div class="main-header" style="margin: 0;">ZERO-TRUST PROTOCOL</div>
-            <button style="border: none; padding: 0; font-size: 0.65rem;" onclick="window.lockVault()">[ SEVER CONNECTION ]</button>
-        </div>
+  <main id="main">
+    <!-- ============ SEAL ============ -->
+    <section class="view" id="view-seal" role="tabpanel" aria-labelledby="tab-seal">
+      <div class="hero">
+        <p class="eyebrow">Encrypt</p>
+        <h1>Seal something <em>only you</em> can open.</h1>
+        <p class="lede">Encrypted in this tab with AES-256-GCM. The key is split into shards and never stored: not on this device, not on any server.</p>
+      </div>
 
-        <div class="grid-2">
-            <div class="form-group">
-                <label>Vault Identifier (Auto-generated if empty)</label>
-                <input type="text" id="record-id" placeholder="e.g., core_architecture_v2">
+      <div class="layout">
+        <div class="steps">
+          <article class="card step">
+            <header class="step-head">
+              <span class="step-n">1</span>
+              <div><h2>What are you protecting?</h2><p>Text or any file up to 100 MB.</p></div>
+              <div class="seg" role="radiogroup" aria-label="Payload type" id="payload-kind">
+                <button role="radio" data-v="text" aria-checked="true">Text</button>
+                <button role="radio" data-v="file" aria-checked="false">File</button>
+              </div>
+            </header>
+            <div id="payload-text" class="field">
+              <label class="sr-only" for="secret-text">Secret text</label>
+              <textarea id="secret-text" rows="6" spellcheck="false" autocomplete="off" placeholder="Seed phrase, recovery codes, a will, account credentials…"></textarea>
+              <div class="hint" id="text-count">0 characters</div>
             </div>
-            <div class="form-group">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <label>Cloud Vault Directory</label>
-                    <button onclick="window.triggerCloudSync()" style="padding: 0.1rem 0.5rem; font-size: 0.6rem; border-color: var(--border-faint);">SYNC</button>
+            <div id="payload-file" hidden>
+              <label class="drop" id="file-drop">
+                <input type="file" id="file-input" class="sr-only">
+                <i data-icon="upload" class="drop-icon"></i>
+                <strong>Drop a file or click to browse</strong>
+                <span>It's read into memory and encrypted here. The unencrypted file is never uploaded.</span>
+              </label>
+              <div class="file-chip" id="file-chip" hidden>
+                <i data-icon="file"></i>
+                <div><strong id="file-name"></strong><span id="file-meta"></span></div>
+                <button class="icon-btn" id="file-clear" aria-label="Remove file"><i data-icon="x"></i></button>
+              </div>
+            </div>
+            <div class="field">
+              <label for="label">Label <span class="muted">· optional, stored unencrypted so you can recognise it</span></label>
+              <input id="label" maxlength="80" autocomplete="off" placeholder="e.g. Family recovery kit">
+            </div>
+          </article>
+
+          <article class="card step">
+            <header class="step-head">
+              <span class="step-n">2</span>
+              <div><h2>Who can open it?</h2><p>Split the key between people or places, use a passphrase, or both.</p></div>
+            </header>
+            <div class="seg wide" role="radiogroup" aria-label="Unlock policy" id="policy">
+              <button role="radio" data-v="shards" aria-checked="true"><i data-icon="shard"></i>Shards</button>
+              <button role="radio" data-v="pass" aria-checked="false"><i data-icon="key"></i>Passphrase</button>
+              <button role="radio" data-v="either" aria-checked="false"><i data-icon="branch"></i>Either</button>
+            </div>
+
+            <div id="shard-config" class="stack">
+              <div class="sliders">
+                <div class="slider">
+                  <label for="n">Shards to create <output id="n-out" for="n">5</output></label>
+                  <input type="range" id="n" min="2" max="10" value="5">
                 </div>
-                <select id="sync-status" disabled style="background-color: var(--bg-input); color: var(--fg-muted);">
-                    <option value="">-- Awaiting Sync --</option>
-                </select>
-            </div>
-        </div>
-
-        <div class="grid-2">
-            <div class="form-group">
-                <label>Topology (Nodes / Threshold)</label>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
-                    <input type="number" id="total-shards" value="5" title="Total Nodes (N)">
-                    <input type="number" id="threshold" value="3" title="Threshold (K)">
+                <div class="slider">
+                  <label for="k">Needed to open <output id="k-out" for="k">3</output></label>
+                  <input type="range" id="k" min="2" max="5" value="3">
                 </div>
+              </div>
+              <div class="pips" id="pips" aria-hidden="true"></div>
+              <p class="hint" id="policy-hint"></p>
             </div>
-            <div class="form-group">
-                <label>Text Payload</label>
-                <input type="text" id="secret-input" placeholder="Enter strictly private strings...">
+
+            <div id="pass-config" class="stack" hidden>
+              <div class="field">
+                <label for="pass">Passphrase</label>
+                <div class="input-group">
+                  <input type="password" id="pass" autocomplete="new-password" spellcheck="false">
+                  <button class="icon-btn" id="pass-show" type="button" aria-label="Show passphrase" aria-pressed="false"><i data-icon="eye"></i></button>
+                  <button class="btn ghost sm" id="pass-gen" type="button"><i data-icon="dice"></i>Generate</button>
+                </div>
+                <div class="meter" id="meter"><span></span></div>
+                <div class="hint" id="meter-label">Use 4+ random words or a generated passphrase.</div>
+              </div>
+              <div class="field">
+                <label for="pass2">Confirm passphrase</label>
+                <input type="password" id="pass2" autocomplete="new-password" spellcheck="false">
+              </div>
+              <p class="hint">Hardened with Argon2id (64 MiB, 3 passes). There is no reset. A forgotten passphrase cannot be recovered.</p>
             </div>
-        </div>
+          </article>
 
-        <div class="grid-2" id="kdf-row">
-            <div class="form-group">
-                <label>Cryptographic Vector (KDF)</label>
-                <select id="kdf-mode" onchange="window.toggleKdfInput(this.value)">
-                    <option value="csprng">Hardware CSPRNG (Pure Random)</option>
-                    <option value="argon2id">Argon2id Wasm (Memory-Hard)</option>
-                    <option value="pbkdf2">PBKDF2-SHA512 (250k)</option>
-                </select>
+          <article class="card step">
+            <header class="step-head">
+              <span class="step-n">3</span>
+              <div><h2>Where should the encrypted file live?</h2><p>Only ciphertext is ever written. Keys stay with you.</p></div>
+            </header>
+            <div class="dest" role="radiogroup" aria-label="Destination">
+              <label class="dest-opt"><input type="radio" name="dest" value="local" checked>
+                <i data-icon="device"></i><strong>This device</strong><span>Browser storage, works offline</span></label>
+              <label class="dest-opt" id="dest-cloud"><input type="radio" name="dest" value="cloud">
+                <i data-icon="cloud"></i><strong>Cloud</strong><span id="dest-cloud-sub">Encrypted copy in your account</span></label>
+              <label class="dest-opt"><input type="radio" name="dest" value="download">
+                <i data-icon="download"></i><strong>Download only</strong><span>Keep the .vault file yourself</span></label>
             </div>
-            <div class="form-group" id="passphrase-group" style="display: none;">
-                <label>Master Passphrase</label>
-                <input type="password" id="master-passphrase" placeholder="Enter high-entropy cipher...">
+          </article>
+        </div>
+
+        <aside class="card summary">
+          <h3>Summary</h3>
+          <dl class="kv" id="summary"></dl>
+          <ul class="props">
+            <li><i data-icon="check"></i>AES-256-GCM authenticated encryption</li>
+            <li><i data-icon="check"></i>Shamir sharing via an independently audited library</li>
+            <li><i data-icon="check"></i>Header is tamper-evident (bound as AAD)</li>
+            <li><i data-icon="check"></i>Size hidden with Padmé padding</li>
+          </ul>
+          <button class="btn primary lg block" id="seal-btn"><i data-icon="lock"></i><span>Seal vault</span></button>
+          <p class="fine">Nothing leaves this tab until you seal, and then only ciphertext does.</p>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ============ OPEN ============ -->
+    <section class="view" id="view-open" role="tabpanel" aria-labelledby="tab-open" hidden>
+      <div class="hero">
+        <p class="eyebrow">Decrypt</p>
+        <h1>Open a vault.</h1>
+        <p class="lede">Bring the vault and enough shards, or its passphrase. Everything is decrypted in memory, here.</p>
+      </div>
+
+      <div class="layout even">
+        <article class="card">
+          <header class="step-head"><span class="step-n">1</span><div><h2>The vault</h2><p>A .vault file, or a record you saved earlier.</p></div></header>
+          <label class="drop compact" id="vault-drop">
+            <input type="file" id="vault-input" class="sr-only" accept=".vault,application/json">
+            <i data-icon="file" class="drop-icon"></i>
+            <strong>Drop a .vault file</strong><span>or click to browse</span>
+          </label>
+          <div class="or"><span>or choose a saved record</span></div>
+          <select id="vault-pick" aria-label="Saved vault records"><option value="">Choose a record…</option></select>
+          <div class="vault-info" id="vault-info" hidden></div>
+        </article>
+
+        <article class="card">
+          <header class="step-head"><span class="step-n">2</span><div><h2>Your keys</h2><p id="keys-sub">Shards, a passphrase, or whichever this vault accepts.</p></div></header>
+          <div id="unlock-shards" class="stack">
+            <div class="quorum">
+              <div class="ring" id="ring"><svg viewBox="0 0 44 44" aria-hidden="true"><circle cx="22" cy="22" r="19" class="track"/><circle cx="22" cy="22" r="19" class="fill" pathLength="100"/></svg><span id="ring-text">0</span></div>
+              <div><strong id="quorum-title">No shards yet</strong><p class="hint" id="quorum-sub">Drop .key files or paste shards below.</p></div>
             </div>
-        </div>
+            <label class="drop compact slim" id="shard-drop">
+              <input type="file" id="shard-input" class="sr-only" multiple accept=".key,.txt,text/plain">
+              <i data-icon="shard"></i><span>Drop .key files or click</span>
+            </label>
+            <textarea id="shard-paste" rows="3" spellcheck="false" autocomplete="off" placeholder="…or paste shards here, one per line"></textarea>
+            <ul class="chips" id="shard-chips" aria-live="polite"></ul>
+          </div>
+          <div class="or" id="unlock-or"><span>or</span></div>
+          <div class="field" id="unlock-pass">
+            <label for="open-pass">Passphrase</label>
+            <input type="password" id="open-pass" autocomplete="current-password" spellcheck="false">
+          </div>
+          <button class="btn primary lg block" id="open-btn" disabled><i data-icon="unlock"></i><span>Open vault</span></button>
+        </article>
+      </div>
 
-        <div class="form-group">
-            <label>Binary Payload (File attachment)</label>
-            <div class="dropzone" onclick="document.getElementById('file-input').click()">
-                Drop file to stage, or click to browse (e.g., c++.cpp)
-                <input type="file" id="file-input" style="display: none;" onchange="window.handleFileSelect(this)">
+      <article class="card result" id="open-result" hidden>
+        <header class="result-head">
+          <div class="badge ok"><i data-icon="check"></i></div>
+          <div><h2 id="result-title">Vault opened</h2><p class="hint" id="result-sub"></p></div>
+          <button class="btn ghost sm" id="result-clear"><i data-icon="x"></i>Clear from memory</button>
+        </header>
+        <div id="result-text" hidden>
+          <pre class="secret blurred" id="result-pre" tabindex="0"></pre>
+          <div class="row gap">
+            <button class="btn ghost sm" id="result-reveal"><i data-icon="eye"></i>Reveal</button>
+            <button class="btn ghost sm" id="result-copy"><i data-icon="copy"></i>Copy</button>
+          </div>
+        </div>
+        <div id="result-file" class="file-chip big" hidden>
+          <i data-icon="file"></i>
+          <div><strong id="result-file-name"></strong><span id="result-file-meta"></span></div>
+          <button class="btn primary sm" id="result-download"><i data-icon="download"></i>Download</button>
+        </div>
+      </article>
+    </section>
+
+    <!-- ============ VAULT ============ -->
+    <section class="view" id="view-vault" role="tabpanel" aria-labelledby="tab-vault" hidden>
+      <div class="hero row">
+        <div>
+          <p class="eyebrow">Records</p>
+          <h1>Your vault.</h1>
+          <p class="lede">Encrypted records. Without their keys these are indistinguishable from noise.</p>
+        </div>
+        <label class="btn ghost"><input type="file" id="import-input" class="sr-only" accept=".vault,application/json" multiple><i data-icon="upload"></i>Import .vault</label>
+      </div>
+      <div class="toolbar">
+        <div class="seg" role="radiogroup" aria-label="Location" id="vault-src">
+          <button role="radio" data-v="local" aria-checked="true"><i data-icon="device"></i>This device</button>
+          <button role="radio" data-v="cloud" aria-checked="false"><i data-icon="cloud"></i>Cloud</button>
+        </div>
+        <input type="search" id="vault-search" placeholder="Filter by label or id" aria-label="Filter records">
+      </div>
+      <div class="records" id="records"></div>
+      <div class="empty" id="records-empty" hidden>
+        <i data-icon="stack" class="empty-icon"></i>
+        <h3 id="empty-title">Nothing here yet</h3>
+        <p id="empty-sub">Sealed vaults saved to this device appear here.</p>
+        <button class="btn primary" id="empty-action">Seal your first vault</button>
+      </div>
+    </section>
+
+    <!-- ============ VERIFY ============ -->
+    <section class="view" id="view-verify" role="tabpanel" aria-labelledby="tab-verify" hidden>
+      <div class="hero">
+        <p class="eyebrow">Recovery drill</p>
+        <h1>Test your shards.</h1>
+        <p class="lede">Check that a set of shards really can recover a vault. You don't need the vault itself, and nothing gets decrypted. Each shard is checked for typos and matched to its set, then the key is rebuilt in memory, compared with its fingerprint, and erased.</p>
+      </div>
+      <div class="layout even">
+        <article class="card">
+          <label class="drop compact" id="verify-drop">
+            <input type="file" id="verify-input" class="sr-only" multiple accept=".key,.txt,text/plain">
+            <i data-icon="shard" class="drop-icon"></i><strong>Drop .key files</strong><span>or click to browse</span>
+          </label>
+          <textarea id="verify-paste" rows="5" spellcheck="false" autocomplete="off" placeholder="…or paste shards, one per line"></textarea>
+          <div class="row gap"><button class="btn ghost sm" id="verify-clear"><i data-icon="x"></i>Clear</button></div>
+        </article>
+        <article class="card verdict" id="verdict" data-state="idle">
+          <div class="verdict-icon"><i data-icon="shield"></i></div>
+          <h2 id="verdict-title">Waiting for shards</h2>
+          <p id="verdict-sub" class="hint">Results appear here as you add shards.</p>
+          <ul class="chips" id="verify-chips"></ul>
+        </article>
+      </div>
+    </section>
+
+    <!-- ============ SETTINGS ============ -->
+    <section class="view" id="view-settings" role="tabpanel" aria-labelledby="tab-settings" hidden>
+      <div class="hero">
+        <p class="eyebrow">Control</p>
+        <h1>Settings.</h1>
+      </div>
+      <div class="grid-settings">
+        <article class="card">
+          <header class="card-head"><i data-icon="wifi-off"></i><h2>Air-gap mode</h2>
+            <label class="switch"><input type="checkbox" id="airgap-toggle"><span></span><span class="sr-only">Air-gap mode</span></label></header>
+          <p>Blocks every network request from this tab with a browser-enforced Content Security Policy. Once on, it can't be undone without reloading. Cloud features turn off.</p>
+          <p class="status" id="airgap-status"></p>
+        </article>
+
+        <article class="card" id="account-card">
+          <header class="card-head"><i data-icon="cloud"></i><h2>Cloud account</h2></header>
+          <div id="account-off" hidden><p class="hint" id="account-off-text"></p></div>
+          <form id="auth-form" class="stack" hidden>
+            <p class="hint">Your account only stores ciphertext. Its password is separate from your vault keys and can't decrypt anything.</p>
+            <div class="field"><label for="auth-email">Email</label><input type="email" id="auth-email" autocomplete="username" required></div>
+            <div class="field"><label for="auth-password">Password</label><input type="password" id="auth-password" autocomplete="current-password" minlength="10" required></div>
+            <div class="row gap">
+              <button class="btn primary" id="auth-signin" type="submit">Sign in</button>
+              <button class="btn ghost" id="auth-signup" type="button">Create account</button>
             </div>
-            <div id="file-indicator" style="font-family: var(--font-mono); font-size: 0.6rem; color: var(--fg-main); text-align: center; text-transform: uppercase;"></div>
-        </div>
+          </form>
+          <div id="account-on" class="stack" hidden>
+            <p>Signed in as <strong id="account-email"></strong></p>
+            <div class="row gap"><button class="btn ghost" id="auth-signout">Sign out</button></div>
+          </div>
+        </article>
 
-        <div class="form-group">
-            <label>Cryptographic Shards (Paste keys or drop .key files here)</label>
-            <textarea id="master-key-input" rows="3" placeholder="Paste structural keys or drop your .key files here..."></textarea>
-        </div>
+        <article class="card">
+          <header class="card-head"><i data-icon="download"></i><h2>Offline app</h2></header>
+          <p>Download this whole app as a single HTML file that runs with no network and no server. Keep it with your shards: if this website ever goes away, your vaults will still open.</p>
+          <div class="row gap">
+            <a class="btn primary" id="offline-dl" href="./" download="zero-trust-vault.html"><i data-icon="download"></i>Download offline app</a>
+          </div>
+          <p class="hint" id="offline-note">Each GitHub release also publishes a local-only build with its SHA-256, so you can verify exactly what you're running.</p>
+        </article>
 
-        <div class="form-group" style="border-top: 1px solid var(--border-faint); border-bottom: 1px solid var(--border-faint); padding: 1rem 0;">
-            <label>Perimeter Defense</label>
-            <div class="radio-group">
-                <label class="radio-label"><input type="radio" name="storage" value="cloud" checked> HYBRID CLOUD</label>
-                <label class="radio-label"><input type="radio" name="storage" value="local"> LOCAL AIR-GAP</label>
-            </div>
-        </div>
+        <article class="card">
+          <header class="card-head"><i data-icon="device"></i><h2>This device</h2></header>
+          <p id="storage-status" class="hint"></p>
+          <div class="row gap"><button class="btn danger" id="wipe-local"><i data-icon="trash"></i>Delete all local records</button></div>
+        </article>
 
-        <div class="action-grid">
-            <button onclick="window.encryptAndCommit()">Encrypt & Commit</button>
-            <button onclick="window.reconstructAndDecrypt()">Fetch & Reconstruct</button>
-            <button class="danger" onclick="window.deleteVaultRecord()">Authorize Burn</button>
-        </div>
+        <article class="card span-2 how">
+          <header class="card-head"><i data-icon="shield"></i><h2>How it works</h2></header>
+          <ol class="flow">
+            <li><b>Generate</b><span>A random 256-bit key is created in this tab from the OS's secure random generator.</span></li>
+            <li><b>Encrypt</b><span>Your data, file name and type are padded and sealed with AES-256-GCM. The header is authenticated too.</span></li>
+            <li><b>Split</b><span>The key is cut into N Shamir shards. Any K rebuild it, and fewer reveal nothing at all.</span></li>
+            <li><b>Forget</b><span>The key is wiped. Only shards (and an optional Argon2id-wrapped copy) can bring it back.</span></li>
+          </ol>
+          <p class="hint">Open source and verifiable. File format, threat model and limits are in the repository's README and SECURITY.md.</p>
+        </article>
+      </div>
+    </section>
+  </main>
 
-        <div id="qr-container" class="qr-grid" style="display: none;"></div>
-        
-        <div class="grid-2" id="shard-actions" style="display: none;">
-            <button style="border-color: var(--border-focus); width: 100%; grid-column: span 2;" onclick="window.downloadShards()">[ DOWNLOAD .KEY FILES ]</button>
-        </div>
+  <footer class="foot">
+    <span>All cryptography runs in this tab · AES-256-GCM · Argon2id · Shamir</span>
+    <details class="log"><summary>Activity</summary><ol id="log"></ol></details>
+  </footer>
 
-        <div class="terminal-container">
-            <div class="terminal-header"><label>Terminal Output</label></div>
-            <pre class="console" id="console-log">INITIATING SECURE ENVIRONMENT...&#10;ZERO-TRUST PROTOCOLS ACTIVE.</pre>
-        </div>
-    </div>
+  <!-- Sealed result -->
+  <dialog id="sealed-dialog" class="sheet" aria-labelledby="sealed-title">
+    <header class="sheet-head">
+      <div class="badge ok"><i data-icon="lock"></i></div>
+      <div><h2 id="sealed-title">Vault sealed</h2><p class="hint" id="sealed-sub"></p></div>
+    </header>
+    <div class="callout warn" id="sealed-warn"><i data-icon="alert"></i><div><strong>Save your shards now.</strong> They are shown once. Nobody, including us, can recover them. Give each shard to a different person or place.</div></div>
+    <div class="shard-grid" id="shard-grid"></div>
+    <footer class="sheet-foot">
+      <button class="btn ghost" id="dl-vault"><i data-icon="file"></i>Download .vault</button>
+      <button class="btn ghost" id="dl-shards"><i data-icon="download"></i>Download all shards</button>
+      <button class="btn ghost" id="print-kit"><i data-icon="printer"></i>Print recovery kit</button>
+      <span class="spacer"></span>
+      <button class="btn primary" id="sealed-done">I've saved them</button>
+    </footer>
+  </dialog>
 
-    <script type="module">
-        import { argon2id } from "https://cdn.jsdelivr.net/npm/hash-wasm@4/dist/index.esm.min.js";
+  <!-- Confirm -->
+  <dialog id="confirm-dialog" class="sheet narrow" aria-labelledby="confirm-title">
+    <form method="dialog">
+      <h2 id="confirm-title"></h2>
+      <p id="confirm-body" class="hint"></p>
+      <footer class="sheet-foot">
+        <span class="spacer"></span>
+        <button class="btn ghost" value="cancel">Cancel</button>
+        <button class="btn primary" value="ok" id="confirm-ok">Confirm</button>
+      </footer>
+    </form>
+  </dialog>
 
-        const SUPABASE_URL = "https://lbeamrjqvkedblkgluie.supabase.co";
-        const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxiZWFtcmpxdmtlZGJsa2dsdWllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2Mjk4MDEsImV4cCI6MjEwMDIwNTgwMX0.VVRygq6-9fIQcRA9W2z1jRzdQgoYgfk_S7jYLrzHobs";
-
-        let supabaseClient = null;
-        try { supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { storage: window.sessionStorage } }); } 
-        catch (e) { console.warn("Supabase client running offline."); }
-
-        let selectedFilePayload = null;
-        window.activeShares = null; // Sanitized global state tracking
-
-        // --- AIR-GAP MASTER STATE ---
-        window.IS_AIR_GAPPED = false;
-
-        window.enforceAirGap = function() {
-            window.IS_AIR_GAPPED = true;
-            const cloudRadio = document.querySelector('input[name="storage"][value="cloud"]');
-            const localRadio = document.querySelector('input[name="storage"][value="local"]');
-            
-            if (localRadio) localRadio.checked = true;
-            if (cloudRadio) cloudRadio.disabled = true;
-            
-            localStorage.setItem('vault_storage_mode', 'AIR_GAP');
-            printToConsole("[SECURITY] AIR-GAP LOCKED. CLOUD CONNECTIVITY SEVERED.");
-        }
-
-        function printToConsole(msg) {
-            const box = document.getElementById('console-log');
-            const time = new Date().toTimeString().split(' ')[0];
-            box.innerText += `\n[${time}] ${msg}`;
-            box.scrollTop = box.scrollHeight;
-        }
-
-        document.addEventListener('DOMContentLoaded', () => {
-            // Check if the vault was previously locked into Air-Gap mode
-            if (localStorage.getItem('vault_storage_mode') === 'AIR_GAP') {
-                window.enforceAirGap();
-            }
-
-            const keyInput = document.getElementById('master-key-input');
-            
-            keyInput.addEventListener('dragover', (e) => { e.preventDefault(); keyInput.style.borderColor = 'var(--fg-main)'; });
-            keyInput.addEventListener('dragleave', (e) => { e.preventDefault(); keyInput.style.borderColor = 'var(--border-faint)'; });
-            
-            keyInput.addEventListener('drop', (e) => {
-                e.preventDefault();
-                keyInput.style.borderColor = 'var(--border-faint)';
-                
-                const textData = e.dataTransfer.getData('text');
-                if (textData) {
-                    const currentVal = keyInput.value.trim();
-                    keyInput.value = currentVal ? currentVal + '\n' + textData.trim() : textData.trim();
-                    printToConsole("[SYS] CIPHER APPENDED VIA TEXT DRAG.");
-                    return;
-                }
-
-                if (e.dataTransfer.files.length > 0) {
-                    const file = e.dataTransfer.files[0];
-                    const reader = new FileReader();
-                    reader.onload = function(event) {
-                        const currentVal = keyInput.value.trim();
-                        const newText = event.target.result.trim();
-                        keyInput.value = currentVal ? currentVal + '\n' + newText : newText;
-                        printToConsole(`[SYS] SHARD EXTRACTED FROM FILE: ${file.name}`);
-                    };
-                    reader.readAsText(file);
-                }
-            });
-
-            if (supabaseClient) { 
-                supabaseClient.auth.getSession().then(({ data: { session } }) => {
-                    if (session) { window.showVaultView(); printToConsole("[SYS] SESSION VERIFIED."); }
-                });
-            }
-        });
-
-        window.showVaultView = function() { document.getElementById('login-view').style.display = 'none'; document.getElementById('vault-view').style.display = 'flex'; }
-        window.lockVault = function() { if (supabaseClient) supabaseClient.auth.signOut(); document.getElementById('vault-view').style.display = 'none'; document.getElementById('login-view').style.display = 'flex'; printToConsole("[SYS] CONNECTION SEVERED."); }
-        
-        window.bypassToLocalMode = function() { 
-            window.showVaultView(); 
-            window.enforceAirGap(); 
-        }
-        
-        window.toggleKdfInput = function(val) {
-            const row = document.getElementById('kdf-row');
-            const group = document.getElementById('passphrase-group');
-            if (val === 'pbkdf2' || val === 'argon2id') {
-                row.style.gridTemplateColumns = '1fr 1fr';
-                group.style.display = 'flex';
-            } else {
-                row.style.gridTemplateColumns = '1fr';
-                group.style.display = 'none';
-            }
-        }
-        
-        window.handleFileSelect = function(input) {
-            const file = input.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                selectedFilePayload = { isBinary: true, name: file.name, type: file.type || "application/octet-stream", data: e.target.result };
-                document.getElementById('file-indicator').innerText = `BINARY STAGED: ${file.name}`;
-                printToConsole(`[SYS] BINARY STAGED IN VOLATILE MEMORY: ${file.name}`);
-            };
-            reader.readAsDataURL(file);
-        }
-
-        window.handleSignUp = async function() {
-            const email = document.getElementById('auth-email').value;
-            const password = document.getElementById('auth-password').value;
-            if (!email || !password) return alert("CREDENTIALS MISSING.");
-            const { error } = await supabaseClient.auth.signUp({ email, password });
-            if (error) alert(`ERROR: ${error.message}`); else alert("IDENTITY PROVISIONED. VERIFY EMAIL.");
-        }
-
-        window.handleSignIn = async function() {
-            const email = document.getElementById('auth-email').value;
-            const password = document.getElementById('auth-password').value;
-            if (!email || !password) return alert("CREDENTIALS MISSING.");
-            const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
-            if (error) alert(`DENIED: ${error.message}`); else { window.showVaultView(); printToConsole("[SUCCESS] ALIAS VERIFIED."); }
-        }
-
-        window.triggerCloudSync = async function() {
-            try {
-                if (window.IS_AIR_GAPPED) throw new Error("NETWORK SEVERED. Air-Gap mode is active.");
-                if (!supabaseClient) throw new Error("Supabase offline.");
-                printToConsole("[SYS] SYNCING WITH CLOUD DIRECTORY...");
-                const { data, error } = await supabaseClient.storage.from('vault-store').list();
-                if (error) throw error;
-                
-                const select = document.getElementById('sync-status');
-                select.innerHTML = '<option value="">-- Select Active Vault Record --</option>';
-                
-                const uniqueIds = [...new Set(data.filter(f => !f.name.startsWith('.')).map(file => file.name.split('.')[0]))];
-                uniqueIds.forEach(id => {
-                    const opt = document.createElement('option');
-                    opt.value = id;
-                    opt.innerText = id;
-                    select.appendChild(opt);
-                });
-                
-                select.disabled = false;
-                select.onchange = (e) => { document.getElementById('record-id').value = e.target.value; };
-                printToConsole(`[SUCCESS] SYNC COMPLETE. FOUND ${uniqueIds.length} REMOTE VECTORS.`);
-            } catch (err) {
-                printToConsole(`[ERROR] SYNC FAILED: ${err.message}`);
-            }
-        }
-
-        async function deriveKeyArgon2id(passphrase, saltBytes) {
-            printToConsole("[SYS] EXECUTING ARGON2ID MEMORY-HARD CIPHER...");
-            const keyBytes = await argon2id({ password: passphrase, salt: saltBytes, parallelism: 1, iterations: 3, memorySize: 65536, hashLength: 32, outputType: "binary" });
-            return await window.crypto.subtle.importKey("raw", keyBytes, { name: "AES-GCM" }, true, ["encrypt", "decrypt"]);
-        }
-
-        async function deriveKeyPBKDF2_SHA512(passphrase, saltBytes) {
-            printToConsole("[SYS] EXECUTING PBKDF2 (SHA-512)...");
-            const enc = new TextEncoder();
-            const keyMaterial = await window.crypto.subtle.importKey("raw", enc.encode(passphrase), "PBKDF2", false, ["deriveKey"]);
-            return await window.crypto.subtle.deriveKey(
-                { name: "PBKDF2", salt: saltBytes, iterations: 250000, hash: "SHA-512" },
-                keyMaterial, { name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]
-            );
-        }
-
-        window.encryptAndCommit = async function() {
-            try {
-                if (!window.secrets) throw new Error("MATH ENGINE MISSING: Please paste secrets.js into Zone 1.");
-                window.activeShares = null; // Reset stale shares
-
-                let rawPayload;
-                if (selectedFilePayload) { rawPayload = JSON.stringify(selectedFilePayload); } 
-                else { rawPayload = document.getElementById('secret-input').value; }
-                if (!rawPayload) throw new Error("PAYLOAD IS EMPTY.");
-
-                let aesKey;
-                const kdfMode = document.getElementById('kdf-mode').value;
-                let saltArray = null;
-
-                if (kdfMode === 'argon2id' || kdfMode === 'pbkdf2') {
-                    const pass = document.getElementById('master-passphrase').value;
-                    if (!pass) throw new Error("CIPHER PASSPHRASE REQUIRED.");
-                    const salt = window.crypto.getRandomValues(new Uint8Array(16));
-                    saltArray = Array.from(salt);
-                    if (kdfMode === 'argon2id') aesKey = await deriveKeyArgon2id(pass, salt);
-                    else aesKey = await deriveKeyPBKDF2_SHA512(pass, salt);
-                } else {
-                    printToConsole("[SYS] GENERATING CSPRNG TRUE RANDOM VECTOR...");
-                    aesKey = await window.crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]);
-                }
-
-                const iv = window.crypto.getRandomValues(new Uint8Array(12));
-                const ciphertextBuffer = await window.crypto.subtle.encrypt({ name: "AES-GCM", iv: iv }, aesKey, new TextEncoder().encode(rawPayload));
-
-                const metaObj = { 
-                    originalName: selectedFilePayload ? selectedFilePayload.name : "text_payload.txt", 
-                    mimeType: selectedFilePayload ? selectedFilePayload.type : "text/plain", 
-                    sizeBytes: selectedFilePayload ? selectedFilePayload.data.length : rawPayload.length, 
-                    salt: saltArray 
-                };
-                const metaIv = window.crypto.getRandomValues(new Uint8Array(12));
-                const encryptedMetaBuffer = await window.crypto.subtle.encrypt({ name: "AES-GCM", iv: metaIv }, aesKey, new TextEncoder().encode(JSON.stringify(metaObj)));
-
-                const rawKeyBuffer = await window.crypto.subtle.exportKey("raw", aesKey);
-                const keyHex = Array.from(new Uint8Array(rawKeyBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
-
-                const N = parseInt(document.getElementById('total-shards').value);
-                const K = parseInt(document.getElementById('threshold').value);
-                const shares = window.secrets.share(keyHex, N, K);
-
-                let recordId = document.getElementById('record-id').value.trim();
-                if (!recordId) { recordId = Array.from(window.crypto.getRandomValues(new Uint8Array(16))).map(b => b.toString(16).padStart(2, '0')).join(''); }
-
-                const vaultRecord = { iv: Array.from(iv), ciphertext: Array.from(new Uint8Array(ciphertextBuffer)) };
-                const metaRecord = { iv: Array.from(metaIv), ciphertext: Array.from(new Uint8Array(encryptedMetaBuffer)) };
-
-                printToConsole(`[SYS] INITIATING COMMIT PROTOCOL: ${recordId}`);
-
-                // The Guard Clause: If true air-gap is active, forcefully override to local storage.
-                if (window.IS_AIR_GAPPED || document.querySelector('input[name="storage"]:checked').value === 'local') {
-                    localStorage.setItem(`vault_${recordId}`, JSON.stringify(vaultRecord));
-                    localStorage.setItem(`meta_${recordId}`, JSON.stringify(metaRecord));
-                    printToConsole(`[SUCCESS] RECORD COMMITTED TO LOCAL AIR-GAP.`);
-                } else {
-                    printToConsole("[SYS] STREAMING ENCRYPTED CIPHERTEXT...");
-                    await supabaseClient.storage.from('vault-store').upload(`${recordId}.enc`, new Blob([JSON.stringify(vaultRecord)]));
-                    await supabaseClient.storage.from('vault-store').upload(`${recordId}.meta`, new Blob([JSON.stringify(metaRecord)]));
-                    printToConsole(`[SUCCESS] CLOUD COMMIT VERIFIED.`);
-                }
-
-                const qrContainer = document.getElementById('qr-container');
-                qrContainer.innerHTML = '';
-                qrContainer.style.display = 'grid';
-                window.activeShares = shares;
-
-                shares.forEach((share, index) => {
-                    const card = document.createElement('div');
-                    card.className = 'qr-card';
-                    card.innerHTML = `
-                        <label>SHARD [${index + 1}/${N}]</label>
-                        <textarea readonly style="width: 100%; height: 70px; resize: none; font-size: 0.6rem; padding: 0.4rem; background: #000; color: var(--fg-muted); border: 1px solid var(--border-faint);">${share}</textarea>
-                    `;
-                    qrContainer.appendChild(card);
-                });
-
-                document.getElementById('record-id').value = recordId;
-                document.getElementById('shard-actions').style.display = 'grid';
-                printToConsole(`[SUCCESS] KEY SHATTERED. ORIGINAL VECTOR DESTROYED.`);
-
-            } catch (err) { printToConsole(`[FATAL] COMMIT FAILED: ${err.message}`); }
-        }
-
-        window.reconstructAndDecrypt = async function() {
-            try {
-                const recordId = document.getElementById('record-id').value.trim();
-                const rawShards = document.getElementById('master-key-input').value.trim();
-                const thresholdK = parseInt(document.getElementById('threshold').value) || 3;
-                
-                if (!recordId || !rawShards) throw new Error("IDENTIFIER AND SHARDS/CIPHER REQUIRED.");
-
-                printToConsole("[SYS] VERIFYING QUORUM / CIPHER...");
-                
-                let keyBytes;
-                if (rawShards.indexOf('\n') === -1 && rawShards.length === 64) {
-                    keyBytes = new Uint8Array(rawShards.match(/.{1,2}/g).map(b => parseInt(b, 16)));
-                } else {
-                    if (!window.secrets) throw new Error("MATH ENGINE MISSING.");
-                    const shards = rawShards.split(/\r?\n/).map(s => s.trim()).filter(s => s.length > 0);
-                    
-                    if (shards.length < thresholdK) {
-                        throw new Error(`INSUFFICIENT QUORUM: Provided ${shards.length} shards, but threshold requires at least ${thresholdK}.`);
-                    }
-
-                    const recoveredHex = window.secrets.combine(shards);
-                    if (!recoveredHex) throw new Error("QUORUM INTERPOLATION FAILED: Mismatched or corrupted shards.");
-                    keyBytes = new Uint8Array(recoveredHex.match(/.{1,2}/g).map(b => parseInt(b, 16)));
-                }
-
-                const aesKey = await window.crypto.subtle.importKey("raw", keyBytes, { name: "AES-GCM" }, false, ["decrypt"]);
-
-                let vaultRecord, metaRecord;
-                const storageMode = document.querySelector('input[name="storage"]:checked').value;
-
-                if (window.IS_AIR_GAPPED || storageMode === 'local') {
-                    vaultRecord = JSON.parse(localStorage.getItem(`vault_${recordId}`));
-                    metaRecord = JSON.parse(localStorage.getItem(`meta_${recordId}`));
-                } else {
-                    printToConsole("[SYS] FETCHING ENCRYPTED ARTIFACTS...");
-                    const { data: dFile, error: dErr } = await supabaseClient.storage.from('vault-store').download(`${recordId}.enc`);
-                    if (dErr) throw new Error(`Cloud fetch failed: ${dErr.message}`);
-                    vaultRecord = JSON.parse(await dFile.text());
-
-                    const { data: mFile, error: mErr } = await supabaseClient.storage.from('vault-store').download(`${recordId}.meta`);
-                    if (mErr) throw new Error(`Cloud metadata fetch failed: ${mErr.message}`);
-                    metaRecord = JSON.parse(await mFile.text());
-                }
-
-                if (!vaultRecord || !metaRecord) throw new Error("Vault record not found in storage storage.");
-
-                const metaBuf = await window.crypto.subtle.decrypt({ name: "AES-GCM", iv: new Uint8Array(metaRecord.iv) }, aesKey, new Uint8Array(metaRecord.ciphertext));
-                const metadata = JSON.parse(new TextDecoder().decode(metaBuf));
-
-                const payloadBuf = await window.crypto.subtle.decrypt({ name: "AES-GCM", iv: new Uint8Array(vaultRecord.iv) }, aesKey, new Uint8Array(vaultRecord.ciphertext));
-                const decryptedStr = new TextDecoder().decode(payloadBuf);
-
-                printToConsole(`[SUCCESS] EXTRACTION COMPLETE: ${metadata.originalName}`);
-
-                try {
-                    const parsedPayload = JSON.parse(decryptedStr);
-                    if (parsedPayload && parsedPayload.isBinary) {
-                        const downloadAnchor = document.createElement('a');
-                        downloadAnchor.href = parsedPayload.data;
-                        downloadAnchor.download = parsedPayload.name;
-                        document.body.appendChild(downloadAnchor);
-                        downloadAnchor.click();
-                        document.body.removeChild(downloadAnchor);
-                        printToConsole(`[SUCCESS] FILE RECONSTRUCTED & DOWNLOADED: ${parsedPayload.name}`);
-                        return;
-                    }
-                } catch (e) {}
-
-                printToConsole(`[PAYLOAD]:\n${decryptedStr}`);
-
-            } catch (err) { printToConsole(`[FATAL] EXTRACTION REJECTED: ${err.message}`); }
-        }
-
-        window.deleteVaultRecord = async function() {
-            try {
-                const recordId = document.getElementById('record-id').value.trim();
-                const rawShards = document.getElementById('master-key-input').value.trim();
-                if (!recordId || !rawShards) throw new Error("IDENTIFIER AND SHARDS/CIPHER REQUIRED.");
-
-                if (rawShards.indexOf('\n') !== -1) {
-                    const shards = rawShards.split(/\r?\n/).map(s => s.trim()).filter(s => s.length > 0);
-                    if (!window.secrets.combine(shards)) throw new Error("INVALID QUORUM.");
-                }
-
-                const storageMode = document.querySelector('input[name="storage"]:checked').value;
-                if (window.IS_AIR_GAPPED || storageMode === 'local') {
-                    localStorage.removeItem(`vault_${recordId}`);
-                    localStorage.removeItem(`meta_${recordId}`);
-                } else {
-                    await supabaseClient.storage.from('vault-store').remove([`${recordId}.enc`, `${recordId}.meta`]);
-                }
-                printToConsole(`[SUCCESS] RECORD ${recordId} ANNIHILATED.`);
-            } catch (err) { printToConsole(`[FATAL] BURN FAILED: ${err.message}`); }
-        }
-
-        window.downloadShards = function() {
-            try {
-                if (!window.activeShares || window.activeShares.length === 0) throw new Error("No active shards in memory.");
-                window.activeShares.forEach((share, index) => {
-                    const blob = new Blob([share], { type: 'text/plain' });
-                    const url = URL.createObjectURL(blob);
-                    const anchor = document.createElement('a');
-                    anchor.href = url;
-                    anchor.download = `vault_shard_${index + 1}_of_${window.activeShares.length}.key`;
-                    document.body.appendChild(anchor);
-                    anchor.click();
-                    document.body.removeChild(anchor);
-                    URL.revokeObjectURL(url);
-                });
-                printToConsole("[SUCCESS] KEY FILES EXPORTED TO LOCAL FILESYSTEM.");
-            } catch (err) { printToConsole(`[ERROR] EXPORT FAILED: ${err.message}`); }
-        }
-    </script>
+  <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+  <div id="print-root" aria-hidden="true"></div>
 </body>
 </html>
