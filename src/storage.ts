@@ -1,5 +1,6 @@
 import { createClient, type Session, type SupabaseClient } from '@supabase/supabase-js';
 import { isId, parseVaultFile, VaultError, type VaultFile } from './crypto';
+import { authUrl, makeDrive, parseTokenHash, type DriveToken } from './gdrive';
 
 // ---------- Air-gap: a browser-enforced network kill switch ----------
 // A CSP <meta> added at runtime can only tighten policy, never be removed, so once locked
@@ -72,7 +73,8 @@ let client: SupabaseClient | null = null;
 function sb(): SupabaseClient {
   if (locked) throw new VaultError('Air-gap is on — the network is blocked in this tab.');
   if (!cloudConfigured) throw new VaultError('Cloud sync is not configured for this build.');
-  return (client ??= createClient(URL_!, KEY!, { auth: { storage: sessionStorage } }));
+  // Persistent session (localStorage): Legacy check-ins rely on owners staying signed in. PKCE for OAuth and email links.
+  return (client ??= createClient(URL_!, KEY!, { auth: { flowType: 'pkce', persistSession: true, detectSessionInUrl: true } }));
 }
 
 async function userPath(id?: string): Promise<string> {
@@ -93,8 +95,19 @@ export const cloud = {
     const { data } = await sb().auth.getSession();
     return data.session;
   },
-  onChange(cb: () => void) {
-    if (cloudConfigured && !locked) sb().auth.onAuthStateChange(() => cb());
+  onChange(cb: (event: string) => void) {
+    if (cloudConfigured && !locked) sb().auth.onAuthStateChange((event) => cb(event));
+  },
+  /** Social sign-in providers enabled for this deployment (must also be enabled in Supabase → Auth → Providers). */
+  providers: ((import.meta.env.VITE_AUTH_PROVIDERS as string | undefined) ?? '').split(',').map((x) => x.trim()).filter(Boolean),
+  /** Full-page redirect to Google/Apple/…; supabase-js completes the sign-in when the app loads again. */
+  async signInWith(provider: string) {
+    const { error } = await sb().auth.signInWithOAuth({ provider: provider as 'google', options: { redirectTo: appUrl() } });
+    raise(error);
+  },
+  /** Passwordless: emails a one-click sign-in link (also creates the account on first use). */
+  async sendLink(email: string) {
+    raise((await sb().auth.signInWithOtp({ email, options: { emailRedirectTo: appUrl(), shouldCreateUser: true } })).error);
   },
   async signIn(email: string, password: string) {
     raise((await sb().auth.signInWithPassword({ email, password })).error);
@@ -191,4 +204,70 @@ export const legacy = {
     raise(error);
     return (data as string | null) ?? null;
   },
+};
+
+const appUrl = () => `${location.origin}${location.pathname}`;
+
+// ---------- Google Drive: vaults in the user's own Drive (no server or database of ours) ----------
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
+const DRIVE_KEY = 'ztv.gdrive';
+const OAUTH_CHANNEL = 'ztv-oauth';
+let driveToken: DriveToken | null = (() => {
+  try { const t = JSON.parse(sessionStorage.getItem(DRIVE_KEY) ?? 'null') as DriveToken | null; return t && t.expiresAt > Date.now() ? t : null; } catch { return null; }
+})();
+const setDriveToken = (t: DriveToken | null) => {
+  driveToken = t;
+  try { if (t) sessionStorage.setItem(DRIVE_KEY, JSON.stringify(t)); else sessionStorage.removeItem(DRIVE_KEY); } catch { /* storage blocked */ }
+};
+
+const driveApi = makeDrive(() => {
+  if (locked) throw new VaultError('Air-gap is on — the network is blocked in this tab.');
+  if (!driveToken || driveToken.expiresAt <= Date.now()) { setDriveToken(null); throw new VaultError('Connect Google Drive first.'); }
+  return driveToken.token;
+});
+
+export const drive = {
+  configured: Boolean(GOOGLE_CLIENT_ID) && (location.protocol === 'https:' || location.hostname === 'localhost'),
+  get connected() { return Boolean(driveToken && driveToken.expiresAt > Date.now()) && !locked; },
+  /**
+   * Opens Google's consent screen in a popup. MUST be called synchronously inside a click handler (popup blockers).
+   * The popup returns to this app, which hands the token back over a same-origin BroadcastChannel
+   * (window.opener is cut by our Cross-Origin-Opener-Policy, by design).
+   */
+  connect(): Promise<void> {
+    if (locked) return Promise.reject(new VaultError('Air-gap is on — the network is blocked in this tab.'));
+    if (!GOOGLE_CLIENT_ID) return Promise.reject(new VaultError('Google Drive is not configured for this build.'));
+    const state = crypto.randomUUID();
+    const popup = window.open(authUrl(GOOGLE_CLIENT_ID, appUrl(), state), 'ztv-google', 'popup,width=520,height=680');
+    if (!popup) return Promise.reject(new VaultError('Your browser blocked the Google window. Allow pop-ups for this site and try again.'));
+    return new Promise((resolve, reject) => {
+      const ch = new BroadcastChannel(OAUTH_CHANNEL);
+      const timer = setTimeout(() => { ch.close(); reject(new VaultError('Google sign-in timed out. Try again.')); }, 5 * 60_000);
+      ch.onmessage = (e: MessageEvent<DriveToken | { error: string; state: string }>) => {
+        if (e.data.state !== state) return;
+        clearTimeout(timer);
+        ch.close();
+        if ('error' in e.data) return reject(new VaultError(e.data.error === 'access_denied' ? 'Google Drive access was declined.' : `Google sign-in failed (${e.data.error}).`));
+        setDriveToken(e.data);
+        resolve();
+      };
+    });
+  },
+  disconnect() { setDriveToken(null); },
+  /** In the popup: if this load is Google's redirect, hand the result to the opener tab and close. Returns true if handled. */
+  completeRedirect(): boolean {
+    const hash = location.hash;
+    const p = new URLSearchParams(hash.slice(1));
+    // Ours always carries `state`; Supabase's own sign-in errors (also in the hash) don't.
+    if (!(p.has('access_token') || p.has('error')) || !p.get('state')) return false;
+    const msg = parseTokenHash(hash) ?? { error: p.get('error') ?? 'unknown', state: p.get('state') ?? '' };
+    history.replaceState(null, '', location.pathname); // never leave the token in the address bar or history
+    new BroadcastChannel(OAUTH_CHANNEL).postMessage(msg);
+    window.close();
+    return true;
+  },
+  list: driveApi.list,
+  get: driveApi.get,
+  put: driveApi.put,
+  remove: driveApi.remove,
 };

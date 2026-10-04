@@ -5,7 +5,7 @@ import {
   describeSlots, fromB64, fromB64url, MAX_BYTES, parseShard, parseVaultFile, rand, shardTokens, toB64, toB64url, VaultError,
   type Header, type Plain, type Policy, type Shard, type SlotType, type Unlock, type VaultFile,
 } from './crypto';
-import { airGap, billing, cloud, cloudConfigured, legacy, local, type LegacyInput, type LegacyPlan, type Plan } from './storage';
+import { airGap, billing, cloud, cloudConfigured, drive, legacy, local, type LegacyInput, type LegacyPlan, type Plan } from './storage';
 import type { Api } from './worker';
 import CryptoWorker from './worker?worker&inline';
 
@@ -23,6 +23,10 @@ type TT = { createPolicy: (n: string, p: { createScriptURL: (u: string) => strin
 
 // Air-gap must engage before anything can reach the network.
 if (airGap.preferred) airGap.lock();
+
+// If this load is the Google Drive consent popup returning, hand the token to the opener tab and close.
+const oauthPopup = drive.completeRedirect();
+const returningFromSignIn = /[?&]code=/.test(location.search);
 
 // ================= Crypto engine: isolated worker, main-thread fallback =================
 let worker: Worker | null = null;
@@ -88,6 +92,9 @@ const ICONS: Record<string, string> = {
   hourglass: 'M6 3h12M6 21h12M7 3v3a5 5 0 0 0 10 0V3M7 21v-3a5 5 0 0 1 10 0v3',
   star: 'M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.8-5.2 2.8 1-5.8-4.3-4.1 5.9-.9z',
   plus: 'M12 5v14M5 12h14',
+  user: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0',
+  drive: 'M3 6.5a1.5 1.5 0 0 1 1.5-1.5H9l2 2.5h8.5A1.5 1.5 0 0 1 21 9v9.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5z',
+  mail: 'M3 6h18v12H3zM3 7l9 7 9-7',
 };
 
 function svgEl(tag: string, attrs: Record<string, string>) {
@@ -350,7 +357,8 @@ const mPass = $<HTMLInputElement>('m-pass');
 const mPasskey = $<HTMLInputElement>('m-passkey');
 const requireBoth = $<HTMLInputElement>('require-both');
 let staged: { name: string; type: string; data: Uint8Array } | null = null;
-type Rekey = { label: string; id: string; where?: 'local' | 'cloud' } | null;
+type Where = 'local' | 'cloud' | 'gdrive';
+type Rekey = { label: string; id: string; where?: Where } | null;
 let rekey: Rekey = null;
 
 const kind = seg('payload-kind', (v) => {
@@ -415,6 +423,25 @@ function syncMethods() {
   summary();
 }
 [mShards, mPass, mPasskey, requireBoth].forEach((el) => el.addEventListener('change', syncMethods));
+
+// Quick choices cover what most people want; "Custom" reveals every key slot.
+const PRESETS: Record<string, { shards: boolean; pass: boolean }> = {
+  me: { shards: false, pass: true },
+  people: { shards: true, pass: false },
+  either: { shards: true, pass: true },
+};
+function applyPreset(v: string) {
+  $('custom-methods').hidden = v !== 'custom';
+  const p = PRESETS[v];
+  if (p) {
+    mShards.checked = p.shards;
+    mPass.checked = p.pass;
+    mPasskey.checked = false;
+    requireBoth.checked = false;
+  }
+  syncMethods();
+}
+document.querySelectorAll<HTMLInputElement>('input[name=preset]').forEach((r) => r.addEventListener('change', () => applyPreset(r.value)));
 
 function refreshPasskeyMethod() {
   const sub = $('m-passkey-sub');
@@ -484,7 +511,8 @@ $('pass-gen').addEventListener('click', () => {
   toast('Generated a 130-bit passphrase. Write it down now.');
 });
 
-const destValue = () => document.querySelector<HTMLInputElement>('input[name=dest]:checked')!.value as 'local' | 'cloud' | 'download';
+type Dest = 'local' | 'cloud' | 'gdrive' | 'download';
+const destValue = () => document.querySelector<HTMLInputElement>('input[name=dest]:checked')!.value as Dest;
 document.querySelectorAll('input[name=dest]').forEach((r) => r.addEventListener('change', summary));
 
 async function refreshDest() {
@@ -495,9 +523,13 @@ async function refreshDest() {
   else {
     radio.disabled = false;
     const s = await cloud.session().catch(() => null);
-    sub.textContent = s ? `Signed in as ${s.user.email}` : 'Sign in under Settings first';
+    sub.textContent = s ? `Signed in as ${s.user.email}` : 'Sign in to sync across devices';
   }
-  if (radio.disabled && radio.checked) document.querySelector<HTMLInputElement>('input[name=dest][value=local]')!.checked = true;
+  const gd = $('dest-gdrive');
+  gd.hidden = !drive.configured || airGap.active;
+  $('dest-gdrive-sub').textContent = drive.connected ? 'Connected' : 'Your own Drive, connect once';
+  const gdRadio = gd.querySelector('input')!;
+  if ((radio.disabled && radio.checked) || (gd.hidden && gdRadio.checked)) document.querySelector<HTMLInputElement>('input[name=dest][value=local]')!.checked = true;
   summary();
 }
 
@@ -506,10 +538,9 @@ function summary() {
     ? (secretText.value ? `Text · ${secretText.value.length.toLocaleString()} chars` : 'Nothing yet')
     : (staged ? `${staged.name} · ${fmtBytes(staged.data.length)}` : 'No file chosen');
   const slots = chosenSlots();
-  const where = { local: 'This device', cloud: 'Cloud', download: 'Download only' }[destValue()];
-  const rows: [string, string][] = [['Payload', what], ['Key slots', slots.length ? slots.join(' · ') : 'None'], ['Store', where], ['Cipher', 'AES-256-GCM']];
-  if (mPass.checked) rows.push(['KDF', 'Argon2id · 64 MiB']);
-  rows.push(['Engine', worker ? 'Isolated worker' : 'Main thread']);
+  const where = { local: 'This device', cloud: 'Cloud', gdrive: 'Google Drive', download: 'Downloaded file' }[destValue()];
+  const opens = slots.length ? ruleText().replace(/^Opens with: /, '') : 'Choose who can open it';
+  const rows: [string, string][] = [['Locking', what], ['Opens with', opens[0].toUpperCase() + opens.slice(1)], ['Kept on', where]];
   $('summary').replaceChildren(...rows.flatMap(([a, b]) => [h('dt', {}, a), h('dd', {}, b)]));
 }
 
@@ -557,17 +588,22 @@ $('seal-btn').addEventListener('click', (e) => {
   const salt = pk ? rand(32) : null;
   const prfP = pk ? passkey.prf(pk.cred, salt!) : null;
   prfP?.catch(() => {});
+  // Google's consent popup must also open inside the click.
+  const driveP = destValue() === 'gdrive' && !drive.connected ? drive.connect() : null;
+  driveP?.catch(() => {});
   void busy(btn, pk ? 'Touch your passkey…' : 'Sealing…', async () => {
     const { plain, pol } = built;
     if (pk) pol.passkey = { cred: pk.cred, rp: pk.rp, salt: toB64(salt!), prf: await prfP! };
     const dest = destValue();
-    if (dest === 'cloud' && !(await cloud.session())) throw new VaultError('Sign in under Settings to save to the cloud.');
+    if (dest === 'cloud' && !(await cloud.session())) { openAuth(); throw new VaultError('Sign in to save to the cloud, then press Seal again.'); }
+    if (driveP) await driveP;
 
     const { file, shards } = await engine('seal', plain, pol);
     let saveError: string | undefined;
     try {
       if (dest === 'local') await local.put(file);
       else if (dest === 'cloud') await cloud.put(file);
+      else if (dest === 'gdrive') await drive.put(file);
       else downloadVault(file);
     } catch (err) {
       saveError = err instanceof Error ? err.message : String(err); // shards are still shown; user can download the .vault
@@ -595,7 +631,7 @@ function shardFile(f: VaultFile, i: number) { return `vault-${f.h.id}-shard-${i 
 
 function showSealed(file: VaultFile, shards: string[], dest: string, saveError?: string, replaced: Rekey = null) {
   sealed = { file, shards, saved: false, replaced };
-  const where = { local: 'Saved on this device', cloud: 'Uploaded to your cloud vault', download: 'Downloaded as a .vault file' }[dest];
+  const where = { local: 'Saved on this device', cloud: 'Uploaded to your cloud vault', gdrive: 'Saved to your Google Drive', download: 'Downloaded as a .vault file' }[dest];
   $('sealed-title').textContent = saveError ? 'Sealed, but not saved' : 'Vault sealed';
   $('sealed-sub').textContent = saveError
     ? `Saving failed: ${saveError}. Download the .vault file now or the data is lost.`
@@ -618,6 +654,8 @@ function showSealed(file: VaultFile, shards: string[], dest: string, saveError?:
     return card;
   }));
   $('dl-shards').hidden = $('print-kit').hidden = !shards.length;
+  // The moment Legacy matters most: they just made something someone else must be able to find.
+  $('sealed-upsell').hidden = !(cloudConfigured && !airGap.active && !plan.pro);
   if (!shards.length) sealed.saved = true;
   sealedDialog.showModal();
 }
@@ -647,11 +685,15 @@ async function retireOld(old: NonNullable<Rekey>) {
   if (!old.where) return toast(`Re-keyed. Destroy the old .vault file for “${old.label}” so its old shards stop mattering.`);
   if (!(await confirmDialog('Delete the old vault?', `“${old.label}” (${old.id}) still opens with its old keys. Delete it so those shards become useless?`, 'Delete old vault', true))) return;
   try {
-    await (old.where === 'local' ? local.remove(old.id) : cloud.remove(old.id));
+    if (old.where === 'gdrive') {
+      const hit = (await drive.list()).find((x) => x.id === old.id);
+      if (hit) await drive.remove(hit.fileId);
+    } else await (old.where === 'local' ? local.remove(old.id) : cloud.remove(old.id));
     toast('Old vault deleted. Its shards no longer open anything.');
   } catch (e) { fail(e); }
 }
 $('sealed-done').addEventListener('click', closeSealed);
+$('sealed-upsell-btn').addEventListener('click', async () => { await closeSealed(); if (!sealedDialog.open) show('legacy'); });
 sealedDialog.addEventListener('cancel', (e) => { e.preventDefault(); void closeSealed(); });
 window.addEventListener('beforeunload', (e) => { if (sealed && !sealed.saved) e.preventDefault(); });
 
@@ -683,7 +725,7 @@ function printKit(file: VaultFile, shards: string[]) {
 
 // ================= OPEN =================
 let target: VaultFile | null = null;
-let targetWhere: 'local' | 'cloud' | undefined;
+let targetWhere: Where | undefined;
 let validShards: Shard[] = [];
 let opened: (Plain & { via: SlotType; bad: number[] }) | null = null;
 const shardPaste = $<HTMLTextAreaElement>('shard-paste');
@@ -691,7 +733,7 @@ const openPass = $<HTMLInputElement>('open-pass');
 const pick = $<HTMLSelectElement>('vault-pick');
 const slotTypes = () => target?.h.slots.map((s) => s.type) ?? [];
 
-function setTarget(f: VaultFile | null, source = '', where?: 'local' | 'cloud') {
+function setTarget(f: VaultFile | null, source = '', where?: Where) {
   target = f;
   targetWhere = where;
   const info = $('vault-info');
@@ -739,6 +781,14 @@ async function refreshPick() {
     for (const f of localFiles.sort((a, b) => b.h.created.localeCompare(a.h.created))) g.append(h('option', { value: `local:${f.h.id}` }, `${f.h.label || 'Untitled'} · ${f.h.id.slice(0, 8)}`));
     opts.push(g);
   }
+  if (drive.connected) {
+    const items = await drive.list().catch(() => []);
+    if (items.length) {
+      const g = h('optgroup', { label: 'Google Drive' });
+      for (const it of items) g.append(h('option', { value: `gdrive:${it.fileId}` }, `${it.label || 'Untitled'} · ${it.id.slice(0, 8)}`));
+      opts.push(g);
+    }
+  }
   if (await cloud.session().catch(() => null)) {
     const items = await cloud.list().catch(() => []);
     if (items.length) {
@@ -750,16 +800,17 @@ async function refreshPick() {
   pick.replaceChildren(...opts);
   pick.value = keep;
 }
-async function loadRecord(where: 'local' | 'cloud', id: string, how?: string) {
-  const f = where === 'local' ? await local.get(id) : await cloud.get(id);
+/** `ref` is the vault id, except for Google Drive where it's Drive's file id. */
+async function loadRecord(where: Where, ref: string, how?: string) {
+  const f = where === 'local' ? await local.get(ref) : where === 'cloud' ? await cloud.get(ref) : await drive.get(ref);
   if (!f) throw new VaultError('Record not found.');
-  pick.value = `${where}:${id}`;
-  setTarget(f, how ?? (where === 'local' ? 'this device' : 'cloud'), where);
+  pick.value = `${where}:${ref}`;
+  setTarget(f, how ?? { local: 'this device', cloud: 'cloud', gdrive: 'Google Drive' }[where], where);
 }
 pick.addEventListener('change', async () => {
   const [where, id] = pick.value.split(':');
   if (!id) return setTarget(null);
-  try { await loadRecord(where as 'local' | 'cloud', id); } catch (e) { fail(e); }
+  try { await loadRecord(where as Where, id); } catch (e) { fail(e); }
 });
 
 function appendText(area: HTMLTextAreaElement, files: File[], after: () => void) {
@@ -1031,7 +1082,7 @@ const vaultSrc = seg('vault-src', () => void renderVault());
 const search = $<HTMLInputElement>('vault-search');
 search.addEventListener('input', () => void renderVault());
 
-interface Row { id: string; label: string; created: string; tags: HTMLElement[]; get: () => Promise<VaultFile | undefined>; remove: () => Promise<unknown> }
+interface Row { id: string; ref?: string; label: string; created: string; tags: HTMLElement[]; get: () => Promise<VaultFile | undefined>; remove: () => Promise<unknown> }
 
 function emptyState(title: string, sub: string, action?: [string, () => void]) {
   $('records').replaceChildren();
@@ -1046,7 +1097,7 @@ function emptyState(title: string, sub: string, action?: [string, () => void]) {
 let vaultGen = 0;
 async function renderVault() {
   const gen = ++vaultGen;
-  const where = vaultSrc.get() as 'local' | 'cloud';
+  const where = vaultSrc.get() as Where;
   let rows: Row[] = [];
   try {
     if (where === 'local') {
@@ -1054,10 +1105,17 @@ async function renderVault() {
         id: f.h.id, label: f.h.label, created: f.h.created, tags: tagsFor(f),
         get: async () => local.get(f.h.id), remove: () => local.remove(f.h.id),
       }));
+    } else if (where === 'gdrive') {
+      if (airGap.active) return emptyState('Air-gap is on', 'Google Drive is blocked in this tab. Turn air-gap off in Settings and reload.', ['Open settings', () => show('settings')]);
+      if (!drive.connected) return emptyState('Connect your Google Drive', 'Vaults you keep in Drive appear here. Google only stores the locked files, and this app sees only the files it created.', ['Connect Google Drive', () => connectDrive(() => void renderVault())]);
+      rows = (await drive.list()).map((d) => ({
+        id: d.id, ref: d.fileId, label: d.label, created: d.created, tags: [h('span', { class: 'tag' }, icon('drive'), 'Google Drive'), h('span', { class: 'tag' }, fmtBytes(d.size))],
+        get: () => drive.get(d.fileId), remove: () => drive.remove(d.fileId),
+      }));
     } else {
       if (!cloudConfigured) return emptyState('Cloud is not configured', 'This build has no cloud backend. Everything still works locally.');
       if (airGap.active) return emptyState('Air-gap is on', 'Cloud access is blocked in this tab. Turn air-gap off in Settings and reload to reconnect.', ['Open settings', () => show('settings')]);
-      if (!(await cloud.session())) return emptyState('Sign in to see your cloud vault', 'Cloud records are stored per account and protected by row-level security.', ['Sign in', () => show('settings')]);
+      if (!(await cloud.session())) return emptyState('Sign in to see your cloud vaults', 'Sign in with Google, Apple or email to keep encrypted vaults in sync across your devices.', ['Sign in', () => openAuth()]);
       rows = (await cloud.list()).map((c) => ({
         id: c.id, label: '', created: c.created, tags: [h('span', { class: 'tag' }, icon('cloud'), 'Cloud'), h('span', { class: 'tag' }, fmtBytes(c.size))],
         get: () => cloud.get(c.id), remove: () => cloud.remove(c.id),
@@ -1081,11 +1139,11 @@ async function renderVault() {
       h('div', { class: 'tags' }, ...r.tags),
       h('div', { class: 'record-actions' },
         button('Open', 'unlock', async () => {
-          try { show('open'); await loadRecord(where, r.id); } catch (e) { fail(e); }
+          try { show('open'); await loadRecord(where, r.ref ?? r.id); } catch (e) { fail(e); }
         }),
         button('Export', 'download', async () => { try { const f = await r.get(); if (f) downloadVault(f); } catch (e) { fail(e); } }),
         button('Delete', 'trash', async () => {
-          if (!(await confirmDialog('Delete this vault?', `“${r.label || r.id}” will be permanently deleted from ${where === 'local' ? 'this device' : 'the cloud'}. Shards can't bring it back. Export a copy first if you might need it.`, 'Delete forever', true))) return;
+          if (!(await confirmDialog('Delete this vault?', `“${r.label || r.id}” will be permanently deleted from ${{ local: 'this device', cloud: 'the cloud', gdrive: 'your Google Drive' }[where]}. Shards can't bring it back. Export a copy first if you might need it.`, 'Delete forever', true))) return;
           try { await r.remove(); toast('Vault deleted.'); void renderVault(); } catch (e) { fail(e); }
         })));
     card.style.animationDelay = `${Math.min(i, 10) * 40}ms`;
@@ -1191,45 +1249,144 @@ airToggle.addEventListener('change', async () => {
   void refreshDest();
 });
 
-async function refreshAccount() {
-  const off = $('account-off'), form = $('auth-form'), on = $('account-on');
-  const reason = !cloudConfigured ? "Cloud sync isn't configured for this build. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to enable it. Everything else works without it."
-    : airGap.active ? 'Unavailable while air-gap is on.' : '';
-  off.hidden = !reason;
-  $('account-off-text').textContent = reason;
-  if (reason) { form.hidden = on.hidden = true; return; }
-  const s = await cloud.session().catch(() => null);
-  form.hidden = Boolean(s);
-  on.hidden = !s;
-  if (s) $('account-email').textContent = s.user.email ?? s.user.id;
+const PROVIDERS: Record<string, { label: string; icon: () => SVGSVGElement }> = {
+  google: { label: 'Google', icon: () => brand('0 0 24 24', [
+    ['#4285F4', 'M23.49 12.27c0-.79-.07-1.54-.19-2.27H12v4.51h6.47c-.29 1.48-1.14 2.73-2.4 3.58v3h3.86c2.26-2.09 3.56-5.17 3.56-8.82z'],
+    ['#34A853', 'M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.86-3c-1.08.72-2.45 1.16-4.07 1.16-3.13 0-5.78-2.11-6.73-4.96H1.29v3.09C3.26 21.3 7.31 24 12 24z'],
+    ['#FBBC05', 'M5.27 14.29c-.25-.72-.38-1.49-.38-2.29s.14-1.57.38-2.29V6.62H1.29C.47 8.24 0 10.06 0 12s.47 3.76 1.29 5.38l3.98-3.09z'],
+    ['#EA4335', 'M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.62l3.98 3.09C6.22 6.86 8.87 4.75 12 4.75z'],
+  ]) },
+  apple: { label: 'Apple', icon: () => brand('0 0 24 24', [['currentColor', 'M16.37 12.6c-.02-2.3 1.88-3.4 1.97-3.46-1.07-1.57-2.74-1.78-3.33-1.8-1.42-.14-2.77.83-3.49.83-.72 0-1.83-.81-3.01-.79-1.55.02-2.98.9-3.78 2.29-1.61 2.8-.41 6.94 1.16 9.21.77 1.11 1.68 2.36 2.88 2.31 1.16-.05 1.59-.75 2.99-.75 1.4 0 1.79.75 3.01.72 1.24-.02 2.03-1.13 2.79-2.25.88-1.29 1.24-2.53 1.26-2.6-.03-.01-2.42-.93-2.45-3.71zM14.08 5.84c.64-.77 1.07-1.85.95-2.92-.92.04-2.03.61-2.69 1.38-.59.68-1.11 1.77-.97 2.82 1.02.08 2.07-.52 2.71-1.28z']]) },
+  github: { label: 'GitHub', icon: () => brand('0 0 16 16', [['currentColor', 'M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z']]) },
+  azure: { label: 'Microsoft', icon: () => brand('0 0 24 24', [['#F25022', 'M1 1h10v10H1z'], ['#7FBA00', 'M13 1h10v10H13z'], ['#00A4EF', 'M1 13h10v10H1z'], ['#FFB900', 'M13 13h10v10H13z']]) },
+};
+function brand(viewBox: string, paths: [string, string][]): SVGSVGElement {
+  const s = svgEl('svg', { viewBox, 'aria-hidden': 'true' }) as SVGSVGElement;
+  for (const [fill, d] of paths) s.append(svgEl('path', { fill, d }));
+  return s;
 }
+
+const authDialog = $<HTMLDialogElement>('auth-dialog');
 const authForm = $<HTMLFormElement>('auth-form');
 const email = $<HTMLInputElement>('auth-email');
 const password = $<HTMLInputElement>('auth-password');
+let passwordMode = false;
+
+function setAuthMode(pw: boolean) {
+  passwordMode = pw;
+  $('auth-password-field').hidden = !pw;
+  $('auth-password-actions').hidden = !pw;
+  $('auth-submit').lastElementChild!.textContent = pw ? 'Sign in' : 'Email me a sign-in link';
+  $('auth-mode').textContent = pw ? 'Email me a link instead' : 'Use a password instead';
+}
+
+/** The one sign-in screen, reachable from the header, Settings, Legacy, plans and cloud saves. */
+function openAuth() {
+  if (!cloudConfigured) return toast("Accounts aren't set up for this build yet.", 'error');
+  if (airGap.active) return toast('Air-gap is on. Turn it off in Settings and reload to sign in.', 'error');
+  setAuthMode(false);
+  authForm.hidden = false;
+  $('auth-sent').hidden = true;
+  $('auth-providers').replaceChildren(...cloud.providers.map((p) => {
+    const meta = PROVIDERS[p] ?? { label: p[0].toUpperCase() + p.slice(1), icon: () => icon('user') };
+    return h('button', {
+      class: 'provider', type: 'button',
+      onclick: (e: Event) => {
+        document.querySelectorAll<HTMLButtonElement>('.provider').forEach((b) => (b.disabled = true));
+        (e.currentTarget as HTMLElement).lastChild!.textContent = 'Redirecting…';
+        cloud.signInWith(p).catch((err) => { fail(err); openAuth(); }); // success navigates away
+      },
+    }, meta.icon(), h('span', {}, `Continue with ${meta.label}`));
+  }));
+  $('auth-or').hidden = !cloud.providers.length;
+  if (!authDialog.open) authDialog.showModal();
+}
+$('auth-close').addEventListener('click', () => authDialog.close());
+$('auth-mode').addEventListener('click', () => setAuthMode(!passwordMode));
+$('auth-back').addEventListener('click', () => { $('auth-sent').hidden = true; authForm.hidden = false; email.focus(); });
 authForm.addEventListener('submit', (e) => {
   e.preventDefault();
-  void busy($<HTMLButtonElement>('auth-signin'), 'Signing in…', async () => {
-    await cloud.signIn(email.value, password.value);
-    password.value = '';
-    toast('Signed in.');
+  if (!email.checkValidity() || !email.value) return email.reportValidity();
+  void busy($<HTMLButtonElement>('auth-submit'), passwordMode ? 'Signing in…' : 'Sending…', async () => {
+    if (passwordMode) {
+      await cloud.signIn(email.value, password.value);
+      password.value = '';
+      authDialog.close();
+      toast('Signed in.');
+    } else {
+      await cloud.sendLink(email.value);
+      $('auth-sent-to').textContent = email.value;
+      authForm.hidden = true;
+      $('auth-sent').hidden = false;
+    }
     await refreshAccount();
   });
 });
 $('auth-signup').addEventListener('click', (e) => {
-  if (!authForm.reportValidity()) return;
+  if (!email.checkValidity() || !email.value) return email.reportValidity();
+  if (password.value.length < 10) { password.focus(); return toast('Use a password of at least 10 characters.', 'error'); }
   void busy(e.currentTarget as HTMLButtonElement, 'Creating…', async () => {
     const signedIn = await cloud.signUp(email.value, password.value);
     password.value = '';
-    toast(signedIn ? 'Account created. You are signed in.' : 'Check your email to confirm the account, then sign in.');
+    if (signedIn) { authDialog.close(); toast('Account created. You are signed in.'); }
+    else { $('auth-sent-to').textContent = email.value; authForm.hidden = true; $('auth-sent').hidden = false; }
     await refreshAccount();
   });
 });
+
+async function refreshAccount() {
+  const reason = !cloudConfigured ? "Accounts aren't set up for this build. Everything else works without one."
+    : airGap.active ? 'Unavailable while air-gap is on.' : '';
+  $('account-off').hidden = !reason;
+  $('account-off-text').textContent = reason;
+  const btn = $('account-btn');
+  btn.hidden = Boolean(reason);
+  if (reason) { $('account-in').hidden = $('account-on').hidden = true; return; }
+  const s = await cloud.session().catch(() => null);
+  $('account-in').hidden = Boolean(s);
+  $('account-on').hidden = !s;
+  const who = s?.user.email ?? s?.user.id ?? '';
+  if (s) {
+    $('account-email').textContent = who;
+    const prov = (s.user.app_metadata?.provider as string | undefined) ?? 'email';
+    $('account-provider').textContent = PROVIDERS[prov]?.label ?? prov;
+  }
+  $('account-btn-label').textContent = s ? who.split('@')[0].slice(0, 18) : 'Sign in';
+  btn.toggleAttribute('data-signed-in', Boolean(s));
+}
+$('account-btn').addEventListener('click', async () => ((await cloud.session().catch(() => null)) ? show('settings') : openAuth()));
+$('account-signin').addEventListener('click', () => openAuth());
 $('auth-signout').addEventListener('click', (e) => busy(e.currentTarget as HTMLButtonElement, 'Signing out…', async () => {
   await cloud.signOut();
   toast('Signed out.');
   await refreshAccount();
 }));
-cloud.onChange(() => { void refreshAccount(); void refreshDest(); void refreshPlan(); void silentCheckin(); });
+
+// ---- Google Drive ----
+/** Must be called from a click handler: Google's consent opens in a popup. */
+function connectDrive(after?: () => void) {
+  drive.connect().then(() => { toast('Google Drive connected.'); refreshDrive(); void refreshDest(); after?.(); }).catch(fail);
+}
+function refreshDrive() {
+  $('drive-card').hidden = !drive.configured;
+  $('src-gdrive').hidden = !drive.configured;
+  const st = $('drive-status');
+  st.className = drive.connected ? 'status on-ok' : 'status';
+  st.textContent = airGap.active ? '○ Blocked while air-gap is on.' : drive.connected ? '● Connected for this session.' : '○ Not connected.';
+  $<HTMLButtonElement>('drive-connect').hidden = drive.connected;
+  $<HTMLButtonElement>('drive-connect').disabled = airGap.active;
+  $('drive-disconnect').hidden = !drive.connected;
+}
+$('drive-connect').addEventListener('click', () => connectDrive());
+$('drive-disconnect').addEventListener('click', () => { drive.disconnect(); toast('Google Drive disconnected on this device.'); refreshDrive(); void refreshDest(); });
+cloud.onChange((event) => {
+  if (event === 'SIGNED_IN') {
+    if (authDialog.open) authDialog.close();
+    // Back from Google/Apple/email link: supabase-js has consumed ?code=; tidy the address bar.
+    if (returningFromSignIn && /[?&]code=/.test(location.search)) { history.replaceState(null, '', location.pathname + location.hash); toast('Signed in.'); }
+  }
+  void refreshAccount(); void refreshDest(); void refreshPlan(); void silentCheckin();
+});
 
 function refreshPasskeyCard() {
   const st = $('passkey-status');
@@ -1294,6 +1451,7 @@ $('wipe-local').addEventListener('click', async () => {
 
 async function refreshSettings() {
   refreshPasskeyCard();
+  refreshDrive();
   renderEngine();
   await Promise.all([refreshAirgapStatus(), refreshAccount(), refreshStorage(), refreshPlan()]);
 }
@@ -1327,7 +1485,7 @@ async function renderPlanCard() {
       : plan.periodEnd ? `Pro is active until ${fmtDate(plan.periodEnd)} and renews automatically unless cancelled.` : 'Pro is active.')
     : 'Free plan: every security feature, unlimited vaults on your devices, and 2 in the cloud.';
   const actions: HTMLElement[] = [];
-  if (billing.configured && !session) actions.push(button('Sign in', 'unlock', () => $('auth-email').focus(), 'btn primary'));
+  if (billing.configured && !session) actions.push(button('Sign in', 'user', () => openAuth(), 'btn primary'));
   else if (billing.configured && !plan.pro) {
     if (billing.checkoutYearly) actions.push(checkoutButton('Upgrade to Pro', billing.checkoutYearly, 'btn primary'));
     if (billing.checkoutLifetime) actions.push(checkoutButton('Get Lifetime', billing.checkoutLifetime, 'btn ghost'));
@@ -1445,7 +1603,7 @@ async function renderLegacy() {
   if (!cloudConfigured) return legacyGate('Legacy needs the hosted service', 'This build has no cloud backend. Everything else works offline.');
   if (airGap.active) return legacyGate('Air-gap is on', 'Legacy needs the network. Turn air-gap off in Settings and reload.', ['Open settings', () => show('settings')]);
   if (!(await cloud.session().catch(() => null))) {
-    return legacyGate('Sign in to set up Legacy', 'Your plan is tied to your account, so we know when you check in.', ['Sign in', () => { show('settings'); $('auth-email').focus(); }]);
+    return legacyGate('Sign in to set up Legacy', 'Your plan is tied to your account, so we know when you check in.', ['Sign in', () => openAuth()]);
   }
   try { legacyPlan = await legacy.get(); } catch (e) { return fail(e); }
   await refreshPlan();
@@ -1535,9 +1693,15 @@ const initial = location.hash.slice(1);
 if (initial === 'checkin=ok') { show('legacy'); toast("You're checked in. Thanks!"); }
 else if (initial === 'checkin=expired') { show('legacy'); toast('That check-in link has expired. Press "I\'m still here" below instead.', 'error'); }
 else if (initial === 'upgraded') { show('settings'); void awaitUpgrade(); }
+else if (initial === 'signin') { show('seal'); openAuth(); }
 else show(TABS.includes(initial as Tab) ? (initial as Tab) : 'seal');
 void refreshPlan();
 void silentCheckin();
+void refreshAccount();
+refreshDrive();
+if (oauthPopup) toast('Google Drive connected. You can close this window.');
+const authError = new URLSearchParams(location.search || location.hash.slice(1)).get('error_description');
+if (authError) { toast(`Sign-in failed: ${authError}`, 'error'); history.replaceState(null, '', location.pathname); }
 log(`Zero-Trust Vault ${__APP_VERSION__} ready · ${worker ? 'isolated crypto worker' : 'main-thread crypto'}${airGap.active ? ' · air-gapped' : ''}`);
 
 // Offline support when served over HTTPS (URL vetted by the Trusted Types default policy).

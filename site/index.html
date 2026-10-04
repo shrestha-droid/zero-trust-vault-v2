@@ -15,8 +15,8 @@
   <meta property="og:image" content="%SITE_URL%/og.png">
   <meta property="og:url" content="%SITE_URL%/">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="theme-color" content="#0a0908">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230a0908'/%3E%3Cpath d='M16 5 26 11v10l-10 6-10-6V11z' fill='none' stroke='%23c8323b' stroke-width='2.2' stroke-linejoin='round'/%3E%3Ccircle cx='16' cy='16' r='3' fill='%23c8323b'/%3E%3C/svg%3E">
+  <meta name="theme-color" content="#000000">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23000'/%3E%3Cpath d='M16 5 26 11v10l-10 6-10-6V11z' fill='none' stroke='%23d42a33' stroke-width='2.2' stroke-linejoin='round'/%3E%3Ccircle cx='16' cy='16' r='3' fill='%23d42a33'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="/site.css">
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Zero-Trust Vault","applicationCategory":"SecurityApplication","operatingSystem":"Web, iOS, Android, macOS, Windows, Linux","description":"Client-side, zero-knowledge encryption with Shamir secret sharing, passkeys and a dead man's switch.","offers":[{"@type":"Offer","name":"Free","price":"0","priceCurrency":"USD"},{"@type":"Offer","name":"Pro (yearly)","price":"60","priceCurrency":"USD"},{"@type":"Offer","name":"Lifetime","price":"199","priceCurrency":"USD"}]}</script>
 </head>
@@ -32,6 +32,7 @@
       <nav aria-label="Sections">
         <a href="#how">How it works</a><a href="#legacy">Legacy</a><a href="#security">Security</a><a href="#pricing">Pricing</a><a href="#faq">FAQ</a>
       </nav>
+      <a class="nav-signin" href="/app/#signin">Sign in</a>
       <a class="btn primary" href="/app/">Open the app</a>
     </div>
   </header>
@@ -188,7 +189,7 @@
           <details><summary>What happens to Legacy if my payment fails after I'm gone?</summary><p>It still fires. Pro is needed to set up or change a plan, but a plan that's already armed is always delivered. A deceased person's card eventually fails, and Legacy is designed around that.</p></details>
           <details><summary>What if I lose a shard, or someone forges one?</summary><p>With "3 of 5", you can lose two shards safely. If someone hands over a tampered shard, the app detects it, tells you which one, and opens the vault from the rest. You can also re-key a vault any time to issue fresh shards.</p></details>
           <details><summary>Has it been audited?</summary><p>The Shamir secret sharing library we use has been independently audited. The app itself has not yet been third-party audited. We'll publish that when it happens. Until then, the threat model and file format are documented in full.</p></details>
-          <details><summary>Do I need an account?</summary><p>No. Everything works without one. An account is only needed for cloud copies and Legacy.</p></details>
+          <details><summary>Do I need an account?</summary><p>No. Everything works without one. Sign in with Google, Apple or email only if you want vaults synced across devices or Legacy. You can also keep vaults in your own Google Drive.</p></details>
           <details><summary>Does it work on my phone?</summary><p>Yes. Open it in your browser and choose "Add to Home Screen" to install it like an app. It works offline, scans shard QR codes with the camera, and supports Face ID and fingerprint passkeys.</p></details>
         </div>
       </div>

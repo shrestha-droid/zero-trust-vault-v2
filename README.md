@@ -33,7 +33,9 @@ The whole app builds into **one self-contained HTML file** with no CDN, no exter
 - **Re-key:** re-seal an opened vault under a new key and new shards, then delete the old record so the old shards become useless.
 - **Self-verifying shards:** a per-shard checksum catches typos, and a key fingerprint catches mixed-up sets.
 
-**Storage:** IndexedDB on the device (asks for persistent storage), Supabase (per-user folders, write-once records, RLS), or a downloadable `.vault` file.
+**Storage:** IndexedDB on the device (asks for persistent storage), the user's **own Google Drive** (browser talks to Google directly, `drive.file` scope, no server involved), Supabase (per-user folders, write-once records, RLS), or a downloadable `.vault` file.
+
+**Accounts:** optional. Sign in with Google, Apple, GitHub, Microsoft or a passwordless email link (Supabase Auth, PKCE). An account never holds keys; it only syncs ciphertext and powers Legacy.
 
 ## Quick start
 
@@ -117,7 +119,8 @@ src/crypto.ts              format, key slots, seal/open, shards + cheater detect
 src/crypto.test.ts         round-trips, 2FA, passkey slots, forged shards, slot swapping, tampering, hostile headers
 src/worker.ts              crypto worker (RPC over postMessage)
 src/storage.ts             IndexedDB, Supabase, air-gap lock
-src/main.ts                UI, passkeys, QR scanner, auto-clear, plans, Legacy
+src/main.ts                UI, sign-in, passkeys, QR scanner, auto-clear, plans, Legacy
+src/gdrive.ts              Google Drive client (own-Drive storage) + OAuth redirect parsing
 src/style.css              design system (dark and light, mobile bottom bar, print kit)
 public/                    service worker, PWA manifest and icons (served under /app/)
 site/                      marketing site, terms, privacy, social image (served at /)
