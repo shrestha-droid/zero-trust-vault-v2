@@ -10,7 +10,7 @@ const { version } = JSON.parse(readFileSync('package.json', 'utf8')) as { versio
  * The policy travels with the HTML, so it protects the hosted app and the downloaded offline file alike,
  * on any host (static platform headers can't know per-build hashes).
  */
-function csp(supabaseUrl?: string): Plugin {
+function csp(supabaseUrl?: string, googleDrive = false): Plugin {
   return {
     name: 'ztv-csp',
     apply: 'build',
@@ -23,7 +23,9 @@ function csp(supabaseUrl?: string): Plugin {
       const scripts = [...src.matchAll(/<script\b(?![^>]*application\/ld\+json)[^>]*>([\s\S]*?)<\/script>/g)].map((m) => sha(m[1]));
       const styles = [...src.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/g)].map((m) => sha(m[1]));
       if (scripts.length !== 1 || styles.length !== 1) throw new Error(`expected 1 inline script + 1 style, got ${scripts.length}/${styles.length}`);
-      const connect = supabaseUrl ? `${supabaseUrl} ${supabaseUrl.replace(/^https:/, 'wss:')}` : "'none'";
+      // Only the backends this build is configured for. Google Drive is called directly from the browser.
+      const origins = [supabaseUrl, supabaseUrl?.replace(/^https:/, 'wss:'), googleDrive && 'https://www.googleapis.com'].filter(Boolean);
+      const connect = origins.length ? origins.join(' ') : "'none'";
       const policy = [
         "default-src 'none'",
         `script-src ${scripts[0]} 'wasm-unsafe-eval'`, // Argon2id runs as WebAssembly
@@ -65,6 +67,6 @@ export default defineConfig(({ mode }) => {
     define: { __APP_VERSION__: JSON.stringify(version) },
     build: { outDir: 'dist/app', target: 'es2022', modulePreload: false, reportCompressedSize: false },
     worker: { format: 'es' as const },
-    plugins: [viteSingleFile(), csp(env.VITE_SUPABASE_URL), site((env.SITE_URL ?? '').replace(/\/+$/, ''))],
+    plugins: [viteSingleFile(), csp(env.VITE_SUPABASE_URL, Boolean(env.VITE_GOOGLE_CLIENT_ID)), site((env.SITE_URL ?? '').replace(/\/+$/, ''))],
   };
 });

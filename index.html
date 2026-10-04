@@ -7,10 +7,10 @@
   <meta name="referrer" content="no-referrer">
   <meta name="description" content="Client-side, zero-knowledge encryption. Split keys into Shamir shards, harden passphrases with Argon2id, and keep vaults on your device or in the cloud. No server ever sees a key.">
   <title>Zero-Trust Vault</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230a0908'/%3E%3Cpath d='M16 5 26 11v10l-10 6-10-6V11z' fill='none' stroke='%23c8323b' stroke-width='2.2' stroke-linejoin='round'/%3E%3Ccircle cx='16' cy='16' r='3' fill='%23c8323b'/%3E%3C/svg%3E">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23000'/%3E%3Cpath d='M16 5 26 11v10l-10 6-10-6V11z' fill='none' stroke='%23d42a33' stroke-width='2.2' stroke-linejoin='round'/%3E%3Ccircle cx='16' cy='16' r='3' fill='%23d42a33'/%3E%3C/svg%3E">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <meta name="theme-color" content="#0a0908">
+  <meta name="theme-color" content="#000000">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Vault">
   <link rel="stylesheet" href="/src/style.css">
@@ -37,6 +37,7 @@
       <button role="tab" id="tab-settings" data-tab="settings" aria-controls="view-settings"><i data-icon="gear"></i><span>Settings</span></button>
     </nav>
     <button class="net-chip" id="net-chip" data-state="online" title="Network status"><span class="dot"></span><span id="net-label">Online</span></button>
+    <button class="btn ghost sm account-btn" id="account-btn" type="button" hidden><i data-icon="user"></i><span id="account-btn-label">Sign in</span></button>
   </header>
 
   <main id="main">
@@ -45,7 +46,7 @@
       <div class="hero">
         <p class="eyebrow">Encrypt</p>
         <h1>Seal something <em>only you</em> can open.</h1>
-        <p class="lede">Encrypted with AES-256-GCM inside an isolated worker. The key never touches this page and is never stored: not on this device, not on any server.</p>
+        <p class="lede">Lock away a secret, then choose who can open it. It's encrypted right here on your device. Nobody else can read it, not even us.</p>
       </div>
 
       <div class="callout info" id="rekey-banner" hidden>
@@ -92,8 +93,19 @@
           <article class="card step">
             <header class="step-head">
               <span class="step-n">2</span>
-              <div><h2>Who can open it?</h2><p>Pick one or more keys. Each is an independent key slot.</p></div>
+              <div><h2>Who can open it?</h2><p>Not sure? "Trusted people" is what most people choose.</p></div>
             </header>
+            <div class="dest presets" role="radiogroup" aria-label="Who can open it">
+              <label class="dest-opt"><input type="radio" name="preset" value="me">
+                <i data-icon="key"></i><strong>Just me</strong><span>A passphrase only you know</span></label>
+              <label class="dest-opt"><input type="radio" name="preset" value="people" checked>
+                <i data-icon="shard"></i><strong>Trusted people</strong><span>Any 3 of 5 keys, shared out</span></label>
+              <label class="dest-opt"><input type="radio" name="preset" value="either">
+                <i data-icon="branch"></i><strong>Either</strong><span>Their keys, or your passphrase</span></label>
+              <label class="dest-opt"><input type="radio" name="preset" value="custom">
+                <i data-icon="gear"></i><strong>Custom</strong><span>Passkeys, two-factor and more</span></label>
+            </div>
+            <div id="custom-methods" class="stack" hidden>
             <div class="methods" role="group" aria-label="Unlock methods">
               <label class="method"><input type="checkbox" id="m-shards" checked>
                 <i data-icon="shard"></i><strong>Shards</strong><span>K of N, split between people or places</span></label>
@@ -106,16 +118,17 @@
               <label class="switch"><input type="checkbox" id="require-both"><span></span><span class="sr-only">Require shards and passphrase together</span></label>
               <div><strong>Require shards <em>and</em> passphrase together</strong><span class="hint">Two-factor: stolen shards alone are useless, and so is a leaked passphrase. When off, either one opens the vault.</span></div>
             </div>
+            </div>
             <p class="rule" id="rule"></p>
 
             <div id="shard-config" class="stack">
               <div class="sliders">
                 <div class="slider">
-                  <label for="n">Shards to create <output id="n-out" for="n">5</output></label>
+                  <label for="n">Keys to hand out <output id="n-out" for="n">5</output></label>
                   <input type="range" id="n" min="2" max="10" value="5">
                 </div>
                 <div class="slider">
-                  <label for="k">Needed to open <output id="k-out" for="k">3</output></label>
+                  <label for="k">Needed to open it <output id="k-out" for="k">3</output></label>
                   <input type="range" id="k" min="2" max="5" value="3">
                 </div>
               </div>
@@ -138,22 +151,24 @@
                 <label for="pass2">Confirm passphrase</label>
                 <input type="password" id="pass2" autocomplete="new-password" spellcheck="false">
               </div>
-              <p class="hint">Hardened with Argon2id (64 MiB, 3 passes). There is no reset. A forgotten passphrase cannot be recovered.</p>
+              <p class="hint">There's no reset. Write it down somewhere safe, because a forgotten passphrase can't be recovered by anyone.</p>
             </div>
           </article>
 
           <article class="card step">
             <header class="step-head">
               <span class="step-n">3</span>
-              <div><h2>Where should the encrypted file live?</h2><p>Only ciphertext is ever written. Keys stay with you.</p></div>
+              <div><h2>Where should it be kept?</h2><p>Only the locked version is saved. Your keys stay with you.</p></div>
             </header>
             <div class="dest" role="radiogroup" aria-label="Destination">
               <label class="dest-opt"><input type="radio" name="dest" value="local" checked>
-                <i data-icon="device"></i><strong>This device</strong><span>Browser storage, works offline</span></label>
+                <i data-icon="device"></i><strong>This device</strong><span>Works offline</span></label>
               <label class="dest-opt" id="dest-cloud"><input type="radio" name="dest" value="cloud">
-                <i data-icon="cloud"></i><strong>Cloud</strong><span id="dest-cloud-sub">Encrypted copy in your account</span></label>
+                <i data-icon="cloud"></i><strong>Cloud</strong><span id="dest-cloud-sub">Available on all your devices</span></label>
+              <label class="dest-opt" id="dest-gdrive" hidden><input type="radio" name="dest" value="gdrive">
+                <i data-icon="drive"></i><strong>Google Drive</strong><span id="dest-gdrive-sub">Your own Drive</span></label>
               <label class="dest-opt"><input type="radio" name="dest" value="download">
-                <i data-icon="download"></i><strong>Download only</strong><span>Keep the .vault file yourself</span></label>
+                <i data-icon="download"></i><strong>Download</strong><span>Keep the file yourself</span></label>
             </div>
           </article>
         </div>
@@ -162,14 +177,12 @@
           <h3>Summary</h3>
           <dl class="kv" id="summary"></dl>
           <ul class="props">
-            <li><i data-icon="check"></i>AES-256-GCM, run in an isolated Web Worker</li>
-            <li><i data-icon="check"></i>LUKS-style key slots, each bound to this vault</li>
-            <li><i data-icon="check"></i>Audited Shamir sharing with forged-shard detection</li>
-            <li><i data-icon="check"></i>Tamper-evident header; size hidden (Padmé)</li>
-            <li><i data-icon="check"></i>Post-quantum: no public-key crypto in the format</li>
+            <li><i data-icon="check"></i>Only the people you choose can open it</li>
+            <li><i data-icon="check"></i>Locked on this device. Nothing readable leaves it</li>
+            <li><i data-icon="check"></i>Opens offline, even if we disappear</li>
           </ul>
           <button class="btn primary lg block" id="seal-btn"><i data-icon="lock"></i><span>Seal vault</span></button>
-          <p class="fine">Nothing leaves this tab until you seal, and then only ciphertext does.</p>
+          <p class="fine">Free. No account needed.</p>
         </aside>
       </div>
     </section>
@@ -179,7 +192,7 @@
       <div class="hero">
         <p class="eyebrow">Decrypt</p>
         <h1>Open a vault.</h1>
-        <p class="lede">Bring the vault and its keys: shards, passphrase, or passkey. Forged or corrupted shards are detected and set aside automatically.</p>
+        <p class="lede">Load the vault, then add its keys. Typos and fake keys are caught automatically.</p>
       </div>
 
       <div class="layout even">
@@ -264,6 +277,7 @@
         <div class="seg" role="radiogroup" aria-label="Location" id="vault-src">
           <button role="radio" data-v="local" aria-checked="true"><i data-icon="device"></i>This device</button>
           <button role="radio" data-v="cloud" aria-checked="false"><i data-icon="cloud"></i>Cloud</button>
+          <button role="radio" data-v="gdrive" aria-checked="false" id="src-gdrive" hidden><i data-icon="drive"></i>Google Drive</button>
         </div>
         <input type="search" id="vault-search" placeholder="Filter by label or id" aria-label="Filter records">
       </div>
@@ -281,7 +295,7 @@
       <div class="hero">
         <p class="eyebrow">Recovery drill</p>
         <h1>Test your shards.</h1>
-        <p class="lede">Check that a set of shards really can recover a vault. You don't need the vault itself, and nothing gets decrypted. Each shard is checked for typos and matched to its set, then the key is rebuilt in memory, compared with its fingerprint, and erased.</p>
+        <p class="lede">Make sure your keys still work before the day you need them. Nothing gets decrypted, and you don't need the vault itself.</p>
       </div>
       <div class="layout even">
         <article class="card">
@@ -389,21 +403,23 @@
         </article>
 
         <article class="card" id="account-card">
-          <header class="card-head"><i data-icon="cloud"></i><h2>Cloud account</h2></header>
+          <header class="card-head"><i data-icon="user"></i><h2>Account</h2></header>
           <div id="account-off" hidden><p class="hint" id="account-off-text"></p></div>
-          <form id="auth-form" class="stack" hidden>
-            <p class="hint">Your account only stores ciphertext. Its password is separate from your vault keys and can't decrypt anything.</p>
-            <div class="field"><label for="auth-email">Email</label><input type="email" id="auth-email" autocomplete="username" required></div>
-            <div class="field"><label for="auth-password">Password</label><input type="password" id="auth-password" autocomplete="current-password" minlength="10" required></div>
-            <div class="row gap">
-              <button class="btn primary" id="auth-signin" type="submit">Sign in</button>
-              <button class="btn ghost" id="auth-signup" type="button">Create account</button>
-            </div>
-          </form>
+          <div id="account-in" class="stack" hidden>
+            <p>Sign in to keep vaults in sync across your devices and to use Legacy. Your account can't open your vaults. Only your keys can.</p>
+            <div class="row gap"><button class="btn primary" id="account-signin" type="button"><i data-icon="user"></i>Sign in or create account</button></div>
+          </div>
           <div id="account-on" class="stack" hidden>
-            <p>Signed in as <strong id="account-email"></strong></p>
+            <p>Signed in as <strong id="account-email"></strong> <span class="tag" id="account-provider"></span></p>
             <div class="row gap"><button class="btn ghost" id="auth-signout">Sign out</button></div>
           </div>
+        </article>
+
+        <article class="card" id="drive-card" hidden>
+          <header class="card-head"><i data-icon="drive"></i><h2>Google Drive</h2></header>
+          <p>Keep encrypted vaults in your own Google Drive, in a folder called "Zero-Trust Vault". Google only ever stores locked files, and this app can only see the files it created there.</p>
+          <p class="status" id="drive-status"></p>
+          <div class="row gap"><button class="btn primary" id="drive-connect" type="button"><i data-icon="drive"></i>Connect Google Drive</button><button class="btn ghost" id="drive-disconnect" type="button" hidden>Disconnect</button></div>
         </article>
 
         <article class="card" id="plan-card" hidden>
@@ -474,6 +490,7 @@
     </header>
     <div class="callout warn" id="sealed-warn"><i data-icon="alert"></i><div><strong>Save your shards now.</strong> They are shown once. Nobody, including us, can recover them. Give each shard to a different person or place.</div></div>
     <div class="shard-grid" id="shard-grid"></div>
+    <div class="callout info upsell" id="sealed-upsell" hidden><i data-icon="hourglass"></i><div><strong>Make sure they'll find it.</strong> With Legacy, if you ever go silent, your trustees are told where this is and how to open it.</div><button class="btn ghost sm" id="sealed-upsell-btn" type="button">Set up Legacy</button></div>
     <footer class="sheet-foot">
       <button class="btn ghost" id="dl-vault"><i data-icon="file"></i>Download .vault</button>
       <button class="btn ghost" id="dl-shards"><i data-icon="download"></i>Download all shards</button>
@@ -481,6 +498,32 @@
       <span class="spacer"></span>
       <button class="btn primary" id="sealed-done">I've saved them</button>
     </footer>
+  </dialog>
+
+  <!-- Sign in -->
+  <dialog id="auth-dialog" class="sheet narrow auth" aria-labelledby="auth-title">
+    <button class="icon-btn auth-close" id="auth-close" type="button" aria-label="Close"><i data-icon="x"></i></button>
+    <div class="auth-head">
+      <svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3 27.3 9.5v13L16 29 4.7 22.5v-13z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M16 16V3M16 16l11.3 6.5M16 16 4.7 22.5" stroke="currentColor" stroke-width="1.6" opacity=".45"/><circle cx="16" cy="16" r="3.2" fill="currentColor"/></svg>
+      <h2 id="auth-title">Sign in to Zero-Trust Vault</h2>
+      <p class="hint">Sync vaults across devices and use Legacy. Your account can't open your vaults. Only your keys can.</p>
+    </div>
+    <div class="providers" id="auth-providers"></div>
+    <div class="or" id="auth-or"><span>or with email</span></div>
+    <form id="auth-form" class="stack" novalidate>
+      <div class="field"><label for="auth-email">Email</label><input type="email" id="auth-email" autocomplete="email" placeholder="you@example.com" required></div>
+      <div class="field" id="auth-password-field" hidden><label for="auth-password">Password</label><input type="password" id="auth-password" autocomplete="current-password" minlength="10"></div>
+      <button class="btn primary lg block" id="auth-submit" type="submit"><i data-icon="mail"></i><span>Email me a sign-in link</span></button>
+      <div class="row gap auth-alt" id="auth-password-actions" hidden><button class="btn ghost block" id="auth-signup" type="button">Create account with password</button></div>
+      <button class="link-btn" id="auth-mode" type="button">Use a password instead</button>
+    </form>
+    <div class="auth-sent" id="auth-sent" hidden>
+      <i data-icon="mail" class="empty-icon"></i>
+      <h3>Check your email</h3>
+      <p class="hint">We sent a sign-in link to <strong id="auth-sent-to"></strong>. Open it on this device to finish signing in.</p>
+      <button class="link-btn" id="auth-back" type="button">Use a different email</button>
+    </div>
+    <p class="fine">By continuing you agree to the <a href="/terms" target="_blank" rel="noopener">Terms</a> and <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</p>
   </dialog>
 
   <!-- QR scanner -->

@@ -2,6 +2,29 @@
 
 Everything here is a one-time setup. Allow about two hours. Do it all in **test mode** first (Stripe test keys, a test Supabase project if you like), run the smoke test, then repeat the Stripe steps in live mode.
 
+## What needs what
+
+You can launch in stages. Each feature only needs the services in its row.
+
+| Feature | Needs | Database? |
+|---|---|---|
+| Seal/open, shards, passphrase, passkeys, offline app, air-gap | Nothing (just Vercel) | No |
+| **Save to Google Drive** (vaults in the user's own Drive) | A Google Cloud OAuth client ID | **No** |
+| **Sign in** with Google / Apple / GitHub / email link | Supabase Auth (free tier) + provider setup | No SQL needed |
+| Zero-Trust Cloud vaults, **Pro**, **Legacy** | Supabase + migrations + Stripe + Resend | Yes (steps 1–3) |
+
+Smallest money-making launch: Vercel + Google Drive + Supabase Auth, then add Stripe and Legacy when you're ready.
+
+## 0. Google Cloud (Google sign-in and Google Drive), free
+
+1. <https://console.cloud.google.com> → create a project.
+2. **APIs & Services → Library →** enable **Google Drive API**.
+3. **OAuth consent screen:** External; set the app name, support email, your domain, and the links to `/privacy` and `/terms`. Add the scope `.../auth/drive.file` (non-sensitive: the app can only see files it created). Publish the app.
+4. **Credentials → Create credentials → OAuth client ID → Web application:**
+   - *Authorized JavaScript origins:* `https://YOUR-DOMAIN`
+   - *Authorized redirect URIs:* `https://YOUR-DOMAIN/app/` (Drive) **and** `https://YOUR-PROJECT.supabase.co/auth/v1/callback` (Google sign-in)
+5. Copy the **Client ID** into Vercel as `VITE_GOOGLE_CLIENT_ID` (it's public by design), and paste the Client ID + **Client secret** into Supabase → Authentication → Providers → Google.
+
 ## 1. Supabase (database, auth, storage)
 
 1. Open your project → **SQL Editor** and run, in order:
@@ -12,7 +35,13 @@ Everything here is a one-time setup. Allow about two hours. Do it all in **test 
    select policyname, cmd from pg_policies where schemaname = 'storage' and tablename = 'objects';
    ```
    Drop every policy on `vault-store` except the three named `vault owner can …`. Then, under **Storage → vault-store**, delete the old v1 files at the bucket root (`*.enc`, `*.meta`). Those records contain their own shards and can be decrypted by anyone who reads them.
-3. **Authentication → URL Configuration:** set *Site URL* to `https://YOUR-DOMAIN/app/`. **Authentication → Providers → Email:** keep "Confirm email" on.
+3. **Authentication → URL Configuration:** set *Site URL* to `https://YOUR-DOMAIN/app/`, and add `https://YOUR-DOMAIN/app/` under *Redirect URLs*.
+   **Authentication → Providers:**
+   - **Email:** on (powers "Email me a sign-in link").
+   - **Google:** paste the client ID/secret from step 0.
+   - **Apple:** needs a paid Apple Developer account ($99/year): create a Services ID and a Sign in with Apple key, then follow Supabase's Apple guide. Skip it at first if you like; just leave `apple` out of `VITE_AUTH_PROVIDERS`.
+   - **GitHub** (optional): GitHub → Settings → Developer settings → OAuth Apps, with callback `https://YOUR-PROJECT.supabase.co/auth/v1/callback`.
+   **Authentication → Emails → SMTP Settings:** use Resend's SMTP. Supabase's built-in email only sends a few messages an hour, which isn't enough for real users.
 4. **Project Settings → API:** copy the *Project URL*, the *anon* key and the *service_role* key. The service_role key bypasses all security, so it only ever goes into Vercel's server variables.
 
 ## 2. Stripe (payments)
@@ -38,6 +67,8 @@ Add and verify your domain (DNS records), create an API key, and choose a sender
    | `SITE_URL` | `https://YOUR-DOMAIN` (no trailing slash) |
    | `VITE_SUPABASE_URL` / `SUPABASE_URL` | Supabase Project URL (same value twice) |
    | `VITE_SUPABASE_ANON_KEY` | Supabase anon key |
+   | `VITE_AUTH_PROVIDERS` | e.g. `google,apple,github`: sign-in buttons to show (only ones enabled in Supabase) |
+   | `VITE_GOOGLE_CLIENT_ID` | Google OAuth client ID (enables Google Drive storage) |
    | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service_role key. **Never** with a `VITE_` prefix |
    | `VITE_CHECKOUT_URL_YEARLY` | Stripe Payment Link (yearly) |
    | `VITE_CHECKOUT_URL_LIFETIME` | Stripe Payment Link (lifetime) |
@@ -56,12 +87,13 @@ Add and verify your domain (DNS records), create an API key, and choose a sender
 ## 5. Smoke test (Stripe test mode)
 
 1. Open `/`, then `/app/`. Seal and open a vault locally.
-2. Settings → create an account → confirm the email → sign in.
-3. Upgrade with test card `4242 4242 4242 4242`. You land back on `/app/#upgraded`, and the **PRO** badge appears within seconds. If it doesn't, check Stripe → Webhooks → the endpoint's recent deliveries.
-4. Seal a vault to **Cloud**, then create a Legacy plan with yourself as the trustee and a 30-day interval.
-5. Fire the cron by hand: `curl -H "Authorization: Bearer $CRON_SECRET" https://YOUR-DOMAIN/api/legacy-tick` returns `{"reminded":0,"released":0,"failed":0}`.
-6. To rehearse a release, in Supabase run `update legacy_plans set last_checkin = now() - interval '200 days';`, call the cron URL again, and check the trustee inbox: message, vault link and escrow shard. Then delete that plan.
-7. Cancel the test subscription in the customer portal and confirm the app shows Free again.
+2. Press **Sign in** (top right) → Continue with Google → you land back signed in. Try "Email me a sign-in link" too.
+3. Seal a vault with destination **Google Drive** → approve Google's popup → check your Drive for the "Zero-Trust Vault" folder → open the vault again from the Vault tab → Google Drive.
+4. Upgrade with test card `4242 4242 4242 4242`. You land back on `/app/#upgraded`, and the **PRO** badge appears within seconds. If it doesn't, check Stripe → Webhooks → the endpoint's recent deliveries.
+5. Seal a vault to **Cloud**, then create a Legacy plan with yourself as the trustee and a 30-day interval.
+6. Fire the cron by hand: `curl -H "Authorization: Bearer $CRON_SECRET" https://YOUR-DOMAIN/api/legacy-tick` returns `{"reminded":0,"released":0,"failed":0}`.
+7. To rehearse a release, in Supabase run `update legacy_plans set last_checkin = now() - interval '200 days';`, call the cron URL again, and check the trustee inbox: message, vault link and escrow shard. Then delete that plan.
+8. Cancel the test subscription in the customer portal and confirm the app shows Free again.
 
 ## 6. Before taking real money
 
