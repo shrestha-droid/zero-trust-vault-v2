@@ -30,12 +30,12 @@ function csp(supabaseUrl?: string): Plugin {
         `style-src ${styles[0]}`,
         "img-src 'self' data: blob:",
         `connect-src ${connect}`,
-        "worker-src 'self'",
+        "worker-src 'self' blob:", // crypto runs in an inline (blob:) worker
         "base-uri 'none'",
         "form-action 'none'",
         "object-src 'none'",
         "require-trusted-types-for 'script'",
-        'trusted-types sw',
+        'trusted-types default',
       ].join('; ');
       html.source = src.replace('<meta charset="utf-8">', `<meta charset="utf-8">\n  <meta http-equiv="Content-Security-Policy" content="${policy}">`);
       this.emitFile({
@@ -46,7 +46,7 @@ function csp(supabaseUrl?: string): Plugin {
   X-Content-Type-Options: nosniff
   X-Frame-Options: DENY
   Referrer-Policy: no-referrer
-  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), bluetooth=()
+  Permissions-Policy: camera=(self), microphone=(), geolocation=(), payment=(), usb=(), serial=(), bluetooth=()
   Cross-Origin-Opener-Policy: same-origin
   Cross-Origin-Resource-Policy: same-origin
   Strict-Transport-Security: max-age=63072000; includeSubDomains
@@ -64,6 +64,7 @@ export default defineConfig(({ mode }) => {
   return {
     define: { __APP_VERSION__: JSON.stringify(version) },
     build: { target: 'es2022', modulePreload: false, reportCompressedSize: false },
+    worker: { format: 'es' as const },
     plugins: [viteSingleFile(), csp(env.VITE_SUPABASE_URL)],
   };
 });
