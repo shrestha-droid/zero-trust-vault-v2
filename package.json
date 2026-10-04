@@ -1,6 +1,6 @@
 {
   "name": "zero-trust-vault",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Client-side, zero-knowledge encryption vault: AES-256-GCM, Argon2id, Shamir secret sharing. Ships as one offline-capable HTML file.",
   "scripts": {
     "dev": "vite",
@@ -20,6 +20,7 @@
     "shamir-secret-sharing": "^0.0.4"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@types/node": "^24.19.1",
     "typescript": "^7.0.2",
     "vite": "^8.3.2",

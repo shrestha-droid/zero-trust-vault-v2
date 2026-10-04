@@ -5,7 +5,7 @@ import {
   describeSlots, fromB64, fromB64url, MAX_BYTES, parseShard, parseVaultFile, rand, shardTokens, toB64, toB64url, VaultError,
   type Header, type Plain, type Policy, type Shard, type SlotType, type Unlock, type VaultFile,
 } from './crypto';
-import { airGap, cloud, cloudConfigured, local } from './storage';
+import { airGap, billing, cloud, cloudConfigured, legacy, local, type LegacyInput, type LegacyPlan, type Plan } from './storage';
 import type { Api } from './worker';
 import CryptoWorker from './worker?worker&inline';
 
@@ -85,6 +85,9 @@ const ICONS: Record<string, string> = {
   camera: 'M4 8h3l2-3h6l2 3h3v11H4zM12 17a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z',
   refresh: 'M20 11a8 8 0 0 0-14.5-4.5L4 8M4 4v4h4M4 13a8 8 0 0 0 14.5 4.5L20 16M20 20v-4h-4',
   clock: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2',
+  hourglass: 'M6 3h12M6 21h12M7 3v3a5 5 0 0 0 10 0V3M7 21v-3a5 5 0 0 1 10 0v3',
+  star: 'M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.8-5.2 2.8 1-5.8-4.3-4.1 5.9-.9z',
+  plus: 'M12 5v14M5 12h14',
 };
 
 function svgEl(tag: string, attrs: Record<string, string>) {
@@ -291,7 +294,7 @@ const passkey = {
 };
 
 // ================= Tabs =================
-const TABS = ['seal', 'open', 'vault', 'verify', 'settings'] as const;
+const TABS = ['seal', 'open', 'vault', 'verify', 'legacy', 'settings'] as const;
 type Tab = (typeof TABS)[number];
 const tabBtns = [...document.querySelectorAll<HTMLButtonElement>('[role=tab]')];
 
@@ -306,6 +309,7 @@ function show(tab: Tab) {
   if (tab === 'vault') void renderVault();
   if (tab === 'open') void refreshPick();
   if (tab === 'settings') void refreshSettings();
+  if (tab === 'legacy') void renderLegacy();
   if (tab === 'seal') { void refreshDest(); refreshPasskeyMethod(); }
   window.scrollTo({ top: 0 });
 }
@@ -1225,7 +1229,7 @@ $('auth-signout').addEventListener('click', (e) => busy(e.currentTarget as HTMLB
   toast('Signed out.');
   await refreshAccount();
 }));
-cloud.onChange(() => { void refreshAccount(); void refreshDest(); });
+cloud.onChange(() => { void refreshAccount(); void refreshDest(); void refreshPlan(); void silentCheckin(); });
 
 function refreshPasskeyCard() {
   const st = $('passkey-status');
@@ -1291,7 +1295,227 @@ $('wipe-local').addEventListener('click', async () => {
 async function refreshSettings() {
   refreshPasskeyCard();
   renderEngine();
-  await Promise.all([refreshAirgapStatus(), refreshAccount(), refreshStorage()]);
+  await Promise.all([refreshAirgapStatus(), refreshAccount(), refreshStorage(), refreshPlan()]);
+}
+
+// ================= PLAN =================
+let plan: Plan = { pro: false, status: 'free', periodEnd: null };
+
+async function refreshPlan(): Promise<Plan> {
+  if (cloudConfigured && !airGap.active) plan = await billing.plan().catch(() => plan);
+  $('pro-badge').hidden = !plan.pro;
+  await renderPlanCard();
+  return plan;
+}
+
+function checkoutButton(label: string, link: string, cls: string) {
+  return button(label, 'star', async () => { try { location.href = await billing.checkoutUrl(link); } catch (e) { fail(e); } }, cls);
+}
+
+async function renderPlanCard() {
+  const card = $('plan-card');
+  card.hidden = !cloudConfigured || airGap.active;
+  if (card.hidden) return;
+  const session = await cloud.session().catch(() => null);
+  const lifetime = plan.status === 'lifetime';
+  const tag = $('plan-tag');
+  tag.textContent = plan.pro ? (lifetime ? 'Pro · Lifetime' : 'Pro') : 'Free';
+  tag.className = `tag${plan.pro ? ' accent' : ''}`;
+  $('plan-desc').textContent = !billing.configured ? 'Payments are not configured in this build.'
+    : !session ? 'Sign in to upgrade, so the purchase is attached to your account.'
+    : plan.pro ? (lifetime ? 'Lifetime Pro. Thank you for supporting the project.'
+      : plan.periodEnd ? `Pro is active until ${fmtDate(plan.periodEnd)} and renews automatically unless cancelled.` : 'Pro is active.')
+    : 'Free plan: every security feature, unlimited vaults on your devices, and 2 in the cloud.';
+  const actions: HTMLElement[] = [];
+  if (billing.configured && !session) actions.push(button('Sign in', 'unlock', () => $('auth-email').focus(), 'btn primary'));
+  else if (billing.configured && !plan.pro) {
+    if (billing.checkoutYearly) actions.push(checkoutButton('Upgrade to Pro', billing.checkoutYearly, 'btn primary'));
+    if (billing.checkoutLifetime) actions.push(checkoutButton('Get Lifetime', billing.checkoutLifetime, 'btn ghost'));
+  } else if (plan.pro && !lifetime && billing.portal) {
+    actions.push(h('a', { class: 'btn ghost', href: billing.portal, target: '_blank', rel: 'noopener noreferrer' }, icon('star'), 'Manage billing'));
+  }
+  $('plan-actions').replaceChildren(...actions);
+}
+
+/** Back from Stripe: the webhook may land a few seconds after the redirect. */
+async function awaitUpgrade() {
+  toast('Payment received. Activating Pro…');
+  for (let i = 0; i < 15; i++) {
+    if ((await refreshPlan()).pro) return toast('Pro is active. Thank you!');
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+  toast("Pro hasn't activated yet. It can take a minute; reload this page shortly.", 'error');
+}
+
+// ================= LEGACY =================
+const DAY = 86_400_000;
+const EMAIL_RE = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/;
+const MAX_TRUSTEES = 10;
+const trusteeList = $('trustee-list');
+const lgInterval = $<HTMLSelectElement>('legacy-interval');
+const lgGrace = $<HTMLSelectElement>('legacy-grace');
+const lgMessage = $<HTMLTextAreaElement>('legacy-message');
+const lgEscrow = $<HTMLTextAreaElement>('legacy-escrow');
+const lgEnabled = $<HTMLInputElement>('legacy-enabled');
+const ESCROW_HINT = $('legacy-escrow-hint').textContent ?? '';
+let legacyPlan: LegacyPlan | null = null;
+const isoAt = (ms: number) => new Date(ms).toISOString();
+
+function trusteeRow(t: { name: string; email: string } = { name: '', email: '' }) {
+  const row = h('div', { class: 'trustee-row' },
+    h('input', { type: 'text', placeholder: 'Name', value: t.name, maxlength: '80', autocomplete: 'off', 'aria-label': 'Trustee name' }),
+    h('input', { type: 'email', placeholder: 'email@example.com', value: t.email, maxlength: '254', autocomplete: 'off', 'aria-label': 'Trustee email' }),
+    h('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Remove trustee', onclick: () => { if (trusteeList.children.length > 1) row.remove(); syncTrusteeAdd(); } }, icon('x')));
+  return row;
+}
+function syncTrusteeAdd() { $<HTMLButtonElement>('trustee-add').disabled = trusteeList.children.length >= MAX_TRUSTEES; }
+$('trustee-add').addEventListener('click', () => {
+  trusteeList.append(trusteeRow());
+  syncTrusteeAdd();
+  trusteeList.lastElementChild?.querySelector('input')?.focus();
+});
+
+function syncTimeline() {
+  $('tl-due').textContent = `After ${lgInterval.selectedOptions[0].text} without a check-in, you get weekly reminders.`;
+  $('tl-grace').textContent = `${lgGrace.selectedOptions[0].text} more to respond, then release.`;
+}
+lgInterval.addEventListener('change', syncTimeline);
+lgGrace.addEventListener('change', syncTimeline);
+lgMessage.addEventListener('input', () => { $('legacy-count').textContent = String(lgMessage.value.length); });
+
+const selectedVaults = () => [...document.querySelectorAll<HTMLInputElement>('#legacy-vaults input:checked')].map((i) => i.value);
+
+async function checkEscrow(): Promise<boolean> {
+  const hint = $('legacy-escrow-hint');
+  const v = lgEscrow.value.trim();
+  hint.className = 'hint';
+  if (!v) { hint.textContent = ESCROW_HINT; return true; }
+  const toks = shardTokens(v);
+  if (toks.length !== 1) { hint.textContent = 'Paste exactly one shard.'; hint.className = 'hint bad-text'; return false; }
+  try {
+    const s = await parseShard(toks[0]);
+    const shared = selectedVaults().includes(s.id);
+    hint.textContent = `Shard #${s.i} of a ${s.k}-of-${s.n} set for vault ${s.id}. Trustees will need ${s.k - 1} more.`
+      + (s.k === 2 ? ' This set needs only 2 shards, so the service plus any one trustee could open it. Use a 3-of-N set for escrow.' : '')
+      + (shared ? '' : " That vault isn't in the shared list above.");
+    hint.className = s.k === 2 || !shared ? 'hint warn-text' : 'hint ok-text';
+    return true;
+  } catch (e) {
+    hint.textContent = (e as Error).message;
+    hint.className = 'hint bad-text';
+    return false;
+  }
+}
+lgEscrow.addEventListener('input', () => void checkEscrow());
+$('legacy-vaults').addEventListener('change', () => void checkEscrow());
+
+function legacyGate(title: string, sub: string, action?: [string, () => void]) {
+  $('legacy-main').hidden = true;
+  $('legacy-gate').hidden = false;
+  $('legacy-gate-title').textContent = title;
+  $('legacy-gate-sub').textContent = sub;
+  const b = $('legacy-gate-action');
+  b.hidden = !action;
+  if (action) { b.textContent = action[0]; b.onclick = action[1]; }
+}
+
+function renderLegacyStatus() {
+  const p = legacyPlan;
+  const kv: [string, string][] = [];
+  let state = 'none', title = 'Not set up', sub = 'Fill in the plan and save it to arm it.';
+  if (p) {
+    const due = Date.parse(p.last_checkin) + p.interval_days * DAY;
+    const release = due + p.grace_days * DAY;
+    if (p.released_at) { state = 'released'; title = 'Released'; sub = `Trustees were contacted on ${fmtDate(p.released_at)}.`; }
+    else if (!p.enabled) { state = 'paused'; title = 'Paused'; sub = 'No reminders and no release while paused.'; }
+    else if (Date.now() >= due) { state = 'reminding'; title = 'Waiting for your check-in'; sub = `Release on ${fmtDate(isoAt(release))} unless you check in.`; }
+    else { state = 'armed'; title = 'Armed'; sub = `Next check-in due in ${plural(Math.ceil((due - Date.now()) / DAY), 'day')}.`; }
+    kv.push(['Last check-in', fmtDate(p.last_checkin)], ['Check-in due', fmtDate(isoAt(due))], ['Release if silent', fmtDate(isoAt(release))],
+      ['Trustees', String(p.trustees.length)], ['Vaults shared', String(p.vault_ids.length)], ['Escrow shard', p.escrow_shard ? 'Yes' : 'No']);
+  }
+  $('legacy-state').dataset.state = state;
+  $('legacy-state-title').textContent = title;
+  $('legacy-state-sub').textContent = sub;
+  $('legacy-kv').replaceChildren(...kv.flatMap(([a, b]) => [h('dt', {}, a), h('dd', {}, b)]));
+}
+
+let legacyGen = 0;
+async function renderLegacy() {
+  const gen = ++legacyGen;
+  if (!cloudConfigured) return legacyGate('Legacy needs the hosted service', 'This build has no cloud backend. Everything else works offline.');
+  if (airGap.active) return legacyGate('Air-gap is on', 'Legacy needs the network. Turn air-gap off in Settings and reload.', ['Open settings', () => show('settings')]);
+  if (!(await cloud.session().catch(() => null))) {
+    return legacyGate('Sign in to set up Legacy', 'Your plan is tied to your account, so we know when you check in.', ['Sign in', () => { show('settings'); $('auth-email').focus(); }]);
+  }
+  try { legacyPlan = await legacy.get(); } catch (e) { return fail(e); }
+  await refreshPlan();
+  if (gen !== legacyGen) return;
+  if (!legacyPlan && !plan.pro) {
+    return legacyGate('Legacy is part of Pro', 'Choose trustees and a check-in interval. If you ever go silent, they get your instructions and your encrypted vaults. Every security feature stays free.',
+      billing.configured ? ['See Pro', () => { show('settings'); $('plan-card').scrollIntoView({ behavior: 'smooth' }); }] : undefined);
+  }
+  $('legacy-gate').hidden = true;
+  $('legacy-main').hidden = false;
+  const p = legacyPlan;
+  const readonly = Boolean(p && (!plan.pro || p.released_at));
+  $('legacy-readonly').hidden = !(p && !plan.pro && !p.released_at);
+  trusteeList.replaceChildren(...(p?.trustees.length ? p.trustees : [{ name: '', email: '' }]).map(trusteeRow));
+  syncTrusteeAdd();
+  lgInterval.value = String(p?.interval_days ?? 90);
+  lgGrace.value = String(p?.grace_days ?? 14);
+  lgMessage.value = p?.message ?? '';
+  $('legacy-count').textContent = String(lgMessage.value.length);
+  lgEscrow.value = p?.escrow_shard ?? '';
+  lgEnabled.checked = p?.enabled ?? true;
+  const cloudItems = await cloud.list().catch(() => []);
+  const ids = [...new Set([...cloudItems.map((c) => c.id), ...(p?.vault_ids ?? [])])];
+  $('legacy-vaults').replaceChildren(...(ids.length ? ids.map((id) => {
+    const c = cloudItems.find((x) => x.id === id);
+    return h('label', {}, h('input', { type: 'checkbox', value: id, checked: Boolean(p?.vault_ids.includes(id)) }), id, h('span', { class: 'hint' }, c ? fmtDate(c.created) : 'no longer in the cloud'));
+  }) : [h('p', { class: 'hint' }, 'No cloud vaults yet. Seal one with "Cloud" as its destination to share it here.')]));
+  $('legacy-main').querySelectorAll<HTMLInputElement>('.steps input, .steps textarea, .steps select, .steps button, #legacy-enabled, #legacy-save')
+    .forEach((el) => { el.disabled = readonly; });
+  $('legacy-delete').hidden = !p;
+  $('legacy-checkin').hidden = !p || Boolean(p.released_at);
+  $('legacy-save').lastElementChild!.textContent = p ? 'Save changes' : 'Arm Legacy';
+  renderLegacyStatus();
+  syncTimeline();
+  void checkEscrow();
+}
+
+$('legacy-save').addEventListener('click', (e) => busy(e.currentTarget as HTMLButtonElement, 'Saving…', async () => {
+  const trustees = [...trusteeList.children].map((r) => {
+    const [n, m] = r.querySelectorAll('input');
+    return { name: n.value.trim(), email: m.value.trim().toLowerCase() };
+  }).filter((t) => t.name || t.email);
+  if (!trustees.length) throw new VaultError('Add at least one trustee.');
+  const badT = trustees.find((t) => !t.name || !EMAIL_RE.test(t.email));
+  if (badT) throw new VaultError(`Check trustee “${badT.name || badT.email}”: a name and a valid email are required.`);
+  if (!(await checkEscrow())) throw new VaultError('The escrow shard is not valid.');
+  const input: LegacyInput = {
+    enabled: lgEnabled.checked, interval_days: +lgInterval.value, grace_days: +lgGrace.value, trustees,
+    message: lgMessage.value, vault_ids: selectedVaults(), escrow_shard: shardTokens(lgEscrow.value)[0] ?? null,
+  };
+  const existed = Boolean(legacyPlan);
+  await legacy.save(input, existed);
+  await legacy.checkin().catch(() => null); // saving proves you're here
+  toast(existed ? 'Legacy plan updated.' : 'Legacy is armed.');
+  await renderLegacy();
+}));
+$('legacy-checkin').addEventListener('click', (e) => busy(e.currentTarget as HTMLButtonElement, 'Checking in…', async () => {
+  await legacy.checkin();
+  toast("Checked in. You're all set.");
+  await renderLegacy();
+}));
+$('legacy-delete').addEventListener('click', async () => {
+  if (!(await confirmDialog('Delete your Legacy plan?', 'Your trustees will not be contacted, and the escrow shard (if any) is deleted from our servers. Your vaults are not affected.', 'Delete plan', true))) return;
+  try { await legacy.remove(); legacyPlan = null; toast('Legacy plan deleted.'); await renderLegacy(); } catch (e) { fail(e); }
+});
+
+/** Opening the app while signed in counts as a check-in, so active owners never trigger a release. */
+async function silentCheckin() {
+  if (!cloudConfigured || airGap.active || !(await cloud.session().catch(() => null))) return;
+  try { if (await legacy.checkin()) log('Legacy check-in recorded'); } catch { /* backend not migrated yet */ }
 }
 
 if (location.protocol === 'file:') {
@@ -1307,8 +1531,13 @@ meter();
 updateNet();
 refreshPasskeyMethod();
 setTarget(null);
-const initial = location.hash.slice(1) as Tab;
-show(TABS.includes(initial) ? initial : 'seal');
+const initial = location.hash.slice(1);
+if (initial === 'checkin=ok') { show('legacy'); toast("You're checked in. Thanks!"); }
+else if (initial === 'checkin=expired') { show('legacy'); toast('That check-in link has expired. Press "I\'m still here" below instead.', 'error'); }
+else if (initial === 'upgraded') { show('settings'); void awaitUpgrade(); }
+else show(TABS.includes(initial as Tab) ? (initial as Tab) : 'seal');
+void refreshPlan();
+void silentCheckin();
 log(`Zero-Trust Vault ${__APP_VERSION__} ready · ${worker ? 'isolated crypto worker' : 'main-thread crypto'}${airGap.active ? ' · air-gapped' : ''}`);
 
 // Offline support when served over HTTPS (URL vetted by the Trusted Types default policy).

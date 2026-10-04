@@ -1,0 +1,16 @@
+{
+  "name": "Zero-Trust Vault",
+  "short_name": "Vault",
+  "description": "Client-side, zero-knowledge encryption with split keys, passkeys and a dead man's switch.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#07090c",
+  "theme_color": "#07090c",
+  "categories": ["security", "utilities", "productivity"],
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

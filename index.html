@@ -8,6 +8,11 @@
   <meta name="description" content="Client-side, zero-knowledge encryption. Split keys into Shamir shards, harden passphrases with Argon2id, and keep vaults on your device or in the cloud. No server ever sees a key.">
   <title>Zero-Trust Vault</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230b0d10'/%3E%3Cpath d='M16 5 26 11v10l-10 6-10-6V11z' fill='none' stroke='%2334d399' stroke-width='2.2' stroke-linejoin='round'/%3E%3Ccircle cx='16' cy='16' r='3' fill='%2334d399'/%3E%3C/svg%3E">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <meta name="theme-color" content="#07090c">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Vault">
   <link rel="stylesheet" href="/src/style.css">
   <script type="module" src="/src/main.ts"></script>
 </head>
@@ -21,13 +26,14 @@
         <path d="M16 16V3M16 16l11.3 6.5M16 16 4.7 22.5" stroke="currentColor" stroke-width="1.6" opacity=".45"/>
         <circle cx="16" cy="16" r="3.2" fill="currentColor"/>
       </svg>
-      <span class="brand-text"><strong>Zero-Trust Vault</strong><small>v<span id="app-version"></span> · zero-knowledge</small></span>
+      <span class="brand-text"><strong>Zero-Trust Vault <span class="pro-badge" id="pro-badge" hidden>PRO</span></strong><small>v<span id="app-version"></span> · zero-knowledge</small></span>
     </a>
     <nav class="tabs" role="tablist" aria-label="Sections">
       <button role="tab" id="tab-seal" data-tab="seal" aria-controls="view-seal"><i data-icon="lock"></i><span>Seal</span></button>
       <button role="tab" id="tab-open" data-tab="open" aria-controls="view-open"><i data-icon="unlock"></i><span>Open</span></button>
       <button role="tab" id="tab-vault" data-tab="vault" aria-controls="view-vault"><i data-icon="stack"></i><span>Vault</span></button>
       <button role="tab" id="tab-verify" data-tab="verify" aria-controls="view-verify"><i data-icon="check"></i><span>Verify</span></button>
+      <button role="tab" id="tab-legacy" data-tab="legacy" aria-controls="view-legacy"><i data-icon="hourglass"></i><span>Legacy</span></button>
       <button role="tab" id="tab-settings" data-tab="settings" aria-controls="view-settings"><i data-icon="gear"></i><span>Settings</span></button>
     </nav>
     <button class="net-chip" id="net-chip" data-state="online" title="Network status"><span class="dot"></span><span id="net-label">Online</span></button>
@@ -298,6 +304,76 @@
       </div>
     </section>
 
+    <!-- ============ LEGACY ============ -->
+    <section class="view" id="view-legacy" role="tabpanel" aria-labelledby="tab-legacy" hidden>
+      <div class="hero">
+        <p class="eyebrow">Legacy · Pro</p>
+        <h1>If something happens to you, <em>the right people</em> find out.</h1>
+        <p class="lede">Just keep using the app. If you go quiet for longer than you choose, your trustees get your message, links to your encrypted vaults and, optionally, one escrowed shard. We never hold enough to open anything.</p>
+      </div>
+
+      <ol class="timeline" aria-label="How Legacy works">
+        <li><b>You check in</b><span>Opening the app while signed in counts. So does one click in a reminder email.</span></li>
+        <li><b>You go quiet</b><span id="tl-due">After 90 days without a check-in, you get weekly reminders.</span></li>
+        <li><b>Grace period</b><span id="tl-grace">14 more days to respond.</span></li>
+        <li><b>Release</b><span>Trustees receive everything you prepared. A lapsed subscription never blocks this.</span></li>
+      </ol>
+
+      <div class="card gate" id="legacy-gate" hidden>
+        <i data-icon="hourglass" class="empty-icon"></i>
+        <h2 id="legacy-gate-title"></h2>
+        <p id="legacy-gate-sub"></p>
+        <button class="btn primary" id="legacy-gate-action" type="button"></button>
+      </div>
+
+      <div class="layout" id="legacy-main" hidden>
+        <div class="steps">
+          <div class="callout info" id="legacy-readonly" hidden><i data-icon="alert"></i><div>Your plan stays armed and will still be delivered. Renew Pro to change it.</div></div>
+          <article class="card step">
+            <header class="step-head"><span class="step-n">1</span><div><h2>Trustees</h2><p>Up to 10 people. They're contacted only on release.</p></div></header>
+            <div class="stack" id="trustee-list"></div>
+            <div><button class="btn ghost sm" id="trustee-add" type="button"><i data-icon="plus"></i>Add trustee</button></div>
+          </article>
+          <article class="card step">
+            <header class="step-head"><span class="step-n">2</span><div><h2>Timing</h2><p>How long you can be silent before anything happens.</p></div></header>
+            <div class="sliders">
+              <div class="field"><label for="legacy-interval">Check-in interval</label>
+                <select id="legacy-interval"><option value="30">30 days</option><option value="60">60 days</option><option value="90" selected>90 days</option><option value="180">6 months</option><option value="365">1 year</option></select></div>
+              <div class="field"><label for="legacy-grace">Grace after reminders</label>
+                <select id="legacy-grace"><option value="7">7 days</option><option value="14" selected>14 days</option><option value="30">30 days</option><option value="60">60 days</option></select></div>
+            </div>
+          </article>
+          <article class="card step">
+            <header class="step-head"><span class="step-n">3</span><div><h2>What they receive</h2><p>Instructions, vault files and, optionally, one shard.</p></div></header>
+            <div class="field">
+              <label for="legacy-message">Message to your trustees</label>
+              <textarea id="legacy-message" rows="6" maxlength="5000" placeholder="Which vaults matter, who holds which shard, the lawyer's phone number…"></textarea>
+              <div class="hint"><span id="legacy-count">0</span>/5000 · Stored readable by the service so it can be delivered. Say <b>who</b> holds the keys, never the keys themselves.</div>
+            </div>
+            <div class="field">
+              <label>Cloud vaults to share</label>
+              <div class="check-list" id="legacy-vaults"></div>
+              <div class="hint">Trustees get download links that expire after 30 days. The files stay encrypted.</div>
+            </div>
+            <div class="field">
+              <label for="legacy-escrow">Escrow shard <span class="muted">· optional</span></label>
+              <textarea id="legacy-escrow" rows="2" spellcheck="false" autocomplete="off" placeholder="Paste ONE shard for us to hand over on release"></textarea>
+              <div class="hint" id="legacy-escrow-hint">Useful when a trustee holds the other shards but not quite enough. One shard alone can't open anything.</div>
+            </div>
+          </article>
+        </div>
+        <aside class="card summary">
+          <h3>Status</h3>
+          <div class="legacy-state" id="legacy-state" data-state="none"><span class="dot"></span><strong id="legacy-state-title">Not set up</strong><span id="legacy-state-sub" class="hint"></span></div>
+          <dl class="kv" id="legacy-kv"></dl>
+          <div class="both-row slim"><label class="switch"><input type="checkbox" id="legacy-enabled" checked><span></span><span class="sr-only">Armed</span></label><div><strong>Armed</strong><span class="hint">Pause to stop reminders and release.</span></div></div>
+          <button class="btn ghost block" id="legacy-checkin" type="button"><i data-icon="check"></i><span>I'm still here</span></button>
+          <button class="btn primary lg block" id="legacy-save" type="button"><i data-icon="hourglass"></i><span>Save plan</span></button>
+          <button class="btn danger sm" id="legacy-delete" type="button" hidden><i data-icon="trash"></i>Delete plan</button>
+        </aside>
+      </div>
+    </section>
+
     <!-- ============ SETTINGS ============ -->
     <section class="view" id="view-settings" role="tabpanel" aria-labelledby="tab-settings" hidden>
       <div class="hero">
@@ -328,6 +404,17 @@
             <p>Signed in as <strong id="account-email"></strong></p>
             <div class="row gap"><button class="btn ghost" id="auth-signout">Sign out</button></div>
           </div>
+        </article>
+
+        <article class="card" id="plan-card" hidden>
+          <header class="card-head"><i data-icon="star"></i><h2>Plan</h2><span class="tag" id="plan-tag">Free</span></header>
+          <p id="plan-desc"></p>
+          <ul class="props" id="plan-perks">
+            <li><i data-icon="check"></i>Unlimited encrypted cloud vaults (Free: 2)</li>
+            <li><i data-icon="check"></i>Legacy: dead man's switch for up to 10 trustees</li>
+            <li><i data-icon="check"></i>Everything else stays free, forever. Opening a vault never needs a plan.</li>
+          </ul>
+          <div class="row gap" id="plan-actions"></div>
         </article>
 
         <article class="card">
