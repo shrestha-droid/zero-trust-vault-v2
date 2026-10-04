@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <meta name="referrer" content="no-referrer">
+  <title>Privacy Policy · Zero-Trust Vault</title>
+  <link rel="canonical" href="%SITE_URL%/privacy">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230b0d10'/%3E%3Cpath d='M16 5 26 11v10l-10 6-10-6V11z' fill='none' stroke='%2334d399' stroke-width='2.2' stroke-linejoin='round'/%3E%3Ccircle cx='16' cy='16' r='3' fill='%2334d399'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/site.css">
+</head>
+<body>
+  <div class="backdrop" aria-hidden="true"></div>
+  <header class="nav"><div class="wrap"><a class="logo" href="/">Zero-Trust Vault</a><a class="btn primary" href="/app/">Open the app</a></div></header>
+  <main class="wrap doc">
+    <p class="eyebrow">Legal</p>
+    <h1>Privacy Policy</h1>
+    <p class="muted">Last updated: [DATE]</p>
+    <div class="note">Template: replace every [BRACKETED] field and have this reviewed by a lawyer for your jurisdiction before launch. Then delete this note.</div>
+
+    <h2>The short version</h2>
+    <p>Zero-Trust Vault encrypts your data on your own device. We never receive your encryption keys, passphrases, passkey secrets or unencrypted content, so we cannot read, sell or hand over what's inside your vaults. You can use the app without an account, in which case we receive nothing at all.</p>
+
+    <h2>Who we are</h2>
+    <p>[LEGAL NAME], [ADDRESS] ("we"). Contact: [CONTACT EMAIL].</p>
+
+    <h2>What stays on your device</h2>
+    <ul>
+      <li>Your secrets and files before encryption, your shards, passphrases and passkey-derived keys.</li>
+      <li>Vaults saved to "This device" (browser storage) and your settings.</li>
+    </ul>
+
+    <h2>What we store if you create an account</h2>
+    <ul>
+      <li><b>Account:</b> your email address and a password hash, managed by our database provider (Supabase).</li>
+      <li><b>Cloud vaults:</b> encrypted vault files you choose to upload. Their headers include a vault id, creation time, an optional label you typed, and which unlock methods exist. Contents, file names and file types are encrypted.</li>
+      <li><b>Plan:</b> your plan status and Stripe customer/subscription identifiers. Card details are handled by Stripe and never reach us.</li>
+      <li><b>Legacy (if you use it):</b> your trustees' names and email addresses, your check-in schedule and history, the message you write to them (readable by us so we can deliver it), the ids of vaults to share, and at most one shard you choose to escrow. One shard cannot open a vault.</li>
+    </ul>
+
+    <h2>Why we use it</h2>
+    <ul>
+      <li>To provide cloud storage, check-in reminders and Legacy delivery you asked for (performance of a contract).</li>
+      <li>To process payments and keep records required by law (legal obligation).</li>
+      <li>We do not use your data for advertising or profiling, and we do not sell it.</li>
+    </ul>
+
+    <h2>Who processes it for us</h2>
+    <ul>
+      <li>Supabase (database, authentication, encrypted file storage), region [REGION].</li>
+      <li>Vercel (website hosting and server functions).</li>
+      <li>Stripe (payments).</li>
+      <li>Resend (sending reminder and Legacy emails).</li>
+    </ul>
+
+    <h2>Your trustees</h2>
+    <p>If you add trustees, you confirm you may share their contact details with us for this purpose. We contact them only when your plan is released.</p>
+
+    <h2>Retention</h2>
+    <p>Cloud vaults and Legacy plans are kept until you delete them or your account. Deleting your account removes them. Payment records are kept as long as tax law requires.</p>
+
+    <h2>Your rights</h2>
+    <p>Depending on where you live, you may access, correct, export or delete your data, and object to or restrict processing. Most of this you can do in the app; for the rest email [CONTACT EMAIL]. You may also complain to your data protection authority.</p>
+
+    <h2>Security</h2>
+    <p>Encryption happens on your device with AES-256-GCM. Access to stored data is enforced per account by row-level security. The site uses a strict Content Security Policy, loads no third-party scripts and sets no tracking cookies.</p>
+
+    <h2>Changes</h2>
+    <p>We'll post updates here and, for material changes, email account holders.</p>
+  </main>
+  <footer><div class="wrap"><span>© 2026 Zero-Trust Vault</span><nav aria-label="Legal"><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/">Home</a></nav></div></footer>
+</body>
+</html>

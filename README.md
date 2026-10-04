@@ -44,17 +44,33 @@ npm run dev            # http://localhost:5173
 npm run check          # typecheck + tests + production build → dist/
 ```
 
-`dist/index.html` is the entire app. `dist/_headers` holds the production security headers for Netlify.
+`dist/app/index.html` is the entire app; `dist/` also holds the marketing site.
 
 ## Deploy
 
-1. **Netlify:** connect the repo. `netlify.toml` runs `npm run check` and publishes `dist/`. Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in the site's environment variables, or leave them unset for a local-only deployment.
-2. **Supabase (optional):** run [`supabase/migrations/0001_vault_store.sql`](supabase/migrations/0001_vault_store.sql) in the SQL editor. Read the note at the top: older, broader policies on `storage.objects` override these and must be dropped.
-3. **Releases:** push a tag such as `v2.0.0`. CI builds a local-only HTML file and attaches it to a GitHub Release with `SHA256SUMS.txt`.
+Vercel hosts the site, the app and three serverless functions. Supabase provides auth, the database and encrypted file storage. Stripe handles payments and Resend sends Legacy emails. **[LAUNCH.md](LAUNCH.md) is the step-by-step go-live checklist.**
 
-The Supabase anon key is public by design. Row-level security enforces access, and the server only ever holds ciphertext.
+```
+/            marketing site (site/: no JavaScript, script-src 'none')
+/app/        the app (single self-contained HTML file, installable as a PWA)
+/api/*       Vercel Functions: stripe-webhook, legacy-tick (daily cron), legacy-checkin
+```
 
-Passkey slots are bound to the domain they were created on (the WebAuthn RP ID). They don't work from the offline file. Always pair a passkey with shards or a passphrase.
+The app's Content Security Policy is generated at build time with script/style hashes and embedded as a `<meta>` tag, so it protects the hosted app and the downloaded offline file alike. `vercel.json` adds the static headers (HSTS, frame denial and so on).
+
+The Supabase anon key is public by design. Row-level security enforces access (and is tested against real Postgres in `supabase/rls.test.ts`), and the server only ever holds ciphertext.
+
+Passkey slots are bound to the domain they were created on (the WebAuthn RP ID). They don't work from the offline file, so the app refuses passkey-only vaults.
+
+## Plans
+
+| | Free | Pro |
+|---|---|---|
+| All cryptography, unlimited local vaults, offline app | ✓ | ✓ |
+| Encrypted cloud vaults | 2 | Unlimited |
+| Legacy (dead man's switch) | | ✓ |
+
+Entitlements are written only by the Stripe webhook (service role) and enforced in Postgres via RLS, not in the browser. Opening a vault never requires a plan. An armed Legacy plan is delivered even if billing lapses; Pro is only needed to create or edit one.
 
 ## File format (v2)
 
@@ -101,11 +117,16 @@ src/crypto.ts              format, key slots, seal/open, shards + cheater detect
 src/crypto.test.ts         round-trips, 2FA, passkey slots, forged shards, slot swapping, tampering, hostile headers
 src/worker.ts              crypto worker (RPC over postMessage)
 src/storage.ts             IndexedDB, Supabase, air-gap lock
-src/main.ts                UI, passkeys, QR scanner, auto-clear
+src/main.ts                UI, passkeys, QR scanner, auto-clear, plans, Legacy
 src/style.css              design system (dark and light, mobile bottom bar, print kit)
-vite.config.ts             single-file build + CSP hash generation + _headers
-public/sw.js               offline cache for the hosted site
-supabase/migrations/       bucket + RLS policies
+public/                    service worker, PWA manifest and icons (served under /app/)
+site/                      marketing site, terms, privacy, social image (served at /)
+server/                    billing + Legacy logic (pure, tested) and env/Supabase admin client
+api/                       Vercel Functions wiring server/ to Stripe, Supabase and Resend
+supabase/migrations/       bucket, entitlements, quotas, Legacy tables + RLS
+supabase/rls.test.ts       migrations run in PGlite (real Postgres) and attacked as two users
+vite.config.ts             single-file build, CSP hash generation, site copy
+vercel.json                headers, /app redirect, daily cron
 ```
 
 ## Limits

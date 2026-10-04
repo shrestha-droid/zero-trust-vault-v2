@@ -121,11 +121,74 @@ export const cloud = {
   async put(f: VaultFile) {
     const body = new Blob([JSON.stringify(f)], { type: 'application/json' });
     const { error } = await sb().storage.from(BUCKET).upload(await userPath(f.h.id), body, { contentType: 'application/json', upsert: false });
+    if (error && /row-level security/i.test(error.message)) {
+      throw new VaultError('The Free plan includes 2 cloud vaults. Upgrade to Pro for unlimited, or save this one to the device.');
+    }
     raise(error);
   },
   async remove(id: string) {
     const { data, error } = await sb().storage.from(BUCKET).remove([await userPath(id)]);
     raise(error);
     if (!data?.length) throw new VaultError('Nothing was deleted — the record was not found.');
+  },
+};
+
+// ---------- Plans (written only by the server's Stripe webhook; read here) ----------
+export interface Plan { pro: boolean; status: string; periodEnd: string | null }
+const FREE: Plan = { pro: false, status: 'free', periodEnd: null };
+
+export const billing = {
+  checkoutYearly: import.meta.env.VITE_CHECKOUT_URL_YEARLY as string | undefined,
+  checkoutLifetime: import.meta.env.VITE_CHECKOUT_URL_LIFETIME as string | undefined,
+  portal: import.meta.env.VITE_BILLING_PORTAL_URL as string | undefined,
+  get configured() { return cloudConfigured && Boolean(this.checkoutYearly || this.checkoutLifetime); },
+  async plan(): Promise<Plan> {
+    if (!(await cloud.session())) return FREE;
+    const { data, error } = await sb().rpc('is_pro');
+    if (error) return FREE;
+    const { data: row } = await sb().from('entitlements').select('status, current_period_end').maybeSingle();
+    return { pro: Boolean(data), status: (row?.status as string) ?? 'free', periodEnd: (row?.current_period_end as string) ?? null };
+  },
+  /** Stripe Payment Link carrying the user id, so the webhook can attribute the purchase. */
+  async checkoutUrl(link: string): Promise<string> {
+    const s = await cloud.session();
+    if (!s) throw new VaultError('Sign in first, so the purchase is attached to your account.');
+    const u = new URL(link);
+    u.searchParams.set('client_reference_id', s.user.id);
+    if (s.user.email) u.searchParams.set('prefilled_email', s.user.email);
+    return u.toString();
+  },
+};
+
+// ---------- Legacy (dead man's switch) ----------
+export interface Trustee { name: string; email: string }
+export interface LegacyPlan {
+  enabled: boolean; interval_days: number; grace_days: number; last_checkin: string;
+  trustees: Trustee[]; message: string; vault_ids: string[]; escrow_shard: string | null;
+  reminded_at: string | null; released_at: string | null;
+}
+export type LegacyInput = Pick<LegacyPlan, 'enabled' | 'interval_days' | 'grace_days' | 'trustees' | 'message' | 'vault_ids' | 'escrow_shard'>;
+
+export const legacy = {
+  async get(): Promise<LegacyPlan | null> {
+    const { data, error } = await sb().from('legacy_plans').select('*').maybeSingle();
+    raise(error);
+    return data as LegacyPlan | null;
+  },
+  async save(input: LegacyInput, exists: boolean) {
+    const uid = await userPath();
+    const q = exists
+      ? sb().from('legacy_plans').update(input).eq('user_id', uid)
+      : sb().from('legacy_plans').insert({ ...input, user_id: uid });
+    const { error } = await q;
+    if (error && /row-level security/i.test(error.message)) throw new VaultError('Legacy plans need Pro. Upgrade to create or edit one.');
+    raise(error);
+  },
+  async remove() { raise((await sb().from('legacy_plans').delete().eq('user_id', await userPath())).error); },
+  /** Resets the clock. Any sign-in + app open counts, so active owners never trigger a false release. */
+  async checkin(): Promise<string | null> {
+    const { data, error } = await sb().rpc('legacy_checkin');
+    raise(error);
+    return (data as string | null) ?? null;
   },
 };
