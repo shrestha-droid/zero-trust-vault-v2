@@ -1,20 +1,24 @@
+@font-face { font-family: "Instrument Serif"; src: url("./fonts/instrument-serif.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "Instrument Serif"; src: url("./fonts/instrument-serif-italic.woff2") format("woff2"); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: "Geist"; src: url("./fonts/geist.woff2") format("woff2"); font-weight: 100 900; font-style: normal; font-display: swap; }
+@font-face { font-family: "Geist Mono"; src: url("./fonts/geist-mono.woff2") format("woff2"); font-weight: 100 900; font-style: normal; font-display: swap; }
 /* ============ Tokens ============
    Stark noir: pure black, hairlines, square corners, monochrome type, one red.
    Red is reserved for the primary action, destructive actions and live signals, so it always means something. */
 :root {
-  --bg: #000;
-  --bg-2: #070707;
-  --surface: #0a0a0a;
-  --surface-solid: #0e0e0e;
-  --surface-2: #141414;
-  --line: rgba(255, 255, 255, 0.09);
-  --line-strong: rgba(255, 255, 255, 0.17);
-  --fg: #f2f1ee;
-  --fg-2: #a6a6a6;
-  --fg-3: #7b7b7b;
+  --bg: #050505;
+  --bg-2: #0a0a0a;
+  --surface: #0b0b0b;
+  --surface-solid: #0f0f0f;
+  --surface-2: #151515;
+  --line: rgba(239, 236, 230, 0.08);
+  --line-strong: rgba(239, 236, 230, 0.16);
+  --fg: #efece6;
+  --fg-2: #a8a49d;
+  --fg-3: #7d7973;
   --accent: #d42a33;
   --accent-2: #8c141a;
-  --accent-hi: #f0505a;
+  --accent-hi: #ff4a52;
   --accent-ink: #fff;
   --accent-soft: rgba(212, 42, 51, 0.12);
   --ok: #f2f1ee;
@@ -27,9 +31,9 @@
   --shadow: none;
   --radius: 4px;
   --radius-sm: 2px;
-  --font: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
-  --serif: ui-serif, "New York", "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
-  --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Menlo, Consolas, monospace;
+  --font: "Geist", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --serif: "Instrument Serif", ui-serif, "New York", "Iowan Old Style", Georgia, serif;
+  --mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .045 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   color-scheme: dark;
@@ -70,13 +74,15 @@ body {
   min-height: 100dvh;
   background: var(--bg);
   color: var(--fg);
-  font: 15px/1.55 var(--font);
+  font: 15px/1.6 var(--font);
+  letter-spacing: -0.006em;
   -webkit-font-smoothing: antialiased;
   display: flex;
   flex-direction: column;
 }
-h1, h2, h3 { margin: 0; line-height: 1.2; letter-spacing: -0.01em; font-weight: 600; }
-h1 { font-family: var(--serif); }
+h1, h2, h3 { margin: 0; line-height: 1.2; letter-spacing: -0.01em; font-weight: 550; text-wrap: balance; }
+h1 { font-family: var(--serif); font-weight: 400; }
+p { text-wrap: pretty; }
 p { margin: 0; }
 button, input, textarea, select { font: inherit; color: inherit; }
 a { color: var(--accent-hi); }
@@ -115,9 +121,11 @@ i[data-icon] { display: inline-flex; }
   border-bottom: 1px solid var(--line);
 }
 .brand { display: flex; align-items: center; gap: 0.65rem; color: var(--fg); text-decoration: none; margin-right: auto; }
-.mark { width: 28px; height: 28px; color: var(--accent); }
+.mark { width: 28px; height: 28px; color: var(--fg); }
+.mark .idx { stroke: var(--accent); }
+.mark .dot { fill: var(--accent); }
 .brand-text { display: grid; line-height: 1.15; }
-.brand-text strong { font-size: 0.82rem; font-weight: 600; letter-spacing: 0.22em; text-transform: uppercase; }
+.brand-text strong { font: 500 0.76rem var(--mono); letter-spacing: 0.26em; text-transform: uppercase; }
 .brand-text small { color: var(--fg-3); font-size: 0.72rem; font-family: var(--mono); }
 
 .tabs { display: flex; gap: 0.15rem; padding: 0.2rem; background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius); }
@@ -152,9 +160,9 @@ main { width: 100%; max-width: 1180px; margin: 0 auto; padding: clamp(1.25rem, 4
 .hero { margin-bottom: 2rem; max-width: 720px; }
 .hero.row { max-width: none; display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; flex-wrap: wrap; }
 .eyebrow { display: flex; align-items: center; gap: 0.7rem; font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.26em; text-transform: uppercase; color: var(--fg-2); margin-bottom: 0.9rem; }
-.eyebrow::before { content: ""; width: 7px; height: 7px; background: var(--accent); flex: none; }
-.hero h1 { font-size: clamp(2rem, 4.6vw, 3.2rem); font-weight: 600; letter-spacing: -0.02em; line-height: 1.08; }
-.hero h1 em { font-style: italic; font-weight: 500; color: var(--accent-hi); }
+.eyebrow::before { content: ""; width: 7px; height: 7px; background: var(--accent); flex: none; box-shadow: 0 0 12px var(--accent); }
+.hero h1 { font-size: clamp(2.5rem, 5.4vw, 4.2rem); font-weight: 400; letter-spacing: -0.025em; line-height: 0.98; }
+.hero h1 em { font-family: var(--serif); font-style: italic; font-weight: 400; color: var(--accent-hi); }
 .lede { color: var(--fg-2); margin-top: 0.75rem; font-size: 1.02rem; max-width: 62ch; }
 
 .layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 1.25rem; align-items: start; }
@@ -162,7 +170,7 @@ main { width: 100%; max-width: 1180px; margin: 0 auto; padding: clamp(1.25rem, 4
 .steps { display: grid; gap: 1.25rem; }
 
 .card {
-  background: var(--surface);
+  background: linear-gradient(180deg, rgba(239, 236, 230, 0.03), transparent 120px), var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: clamp(1.1rem, 2.5vw, 1.5rem);
@@ -661,3 +669,23 @@ dialog.sheet.auth { width: min(420px, calc(100vw - 2rem)); gap: 1.1rem; padding:
   .account-btn span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
   .net-chip #net-label { display: none; }
 }
+
+/* Big serif moments inside the app */
+.auth-head h2, .result-head h2, .sheet-head h2, .verdict h2, .gate h2, .empty h3 { font-family: var(--serif); font-weight: 400; font-size: 1.7rem; letter-spacing: -0.015em; }
+.btn.primary, .btn.lg { font-family: var(--mono); font-weight: 500; }
+.btn.primary { box-shadow: 0 14px 32px -16px rgba(212, 42, 51, 0.8); }
+
+/* The seal moment: a vault dial spins through its combination and locks. */
+.seal-dial { position: relative; width: 58px; height: 58px; flex: none; }
+.seal-dial span { position: absolute; border-radius: 50%; }
+.seal-dial .ring {
+  inset: 0;
+  background: repeating-conic-gradient(from 0deg, rgba(239, 236, 230, 0.55) 0 1.4deg, transparent 1.4deg 12deg), radial-gradient(circle, #0b0b0b 58%, #1c1c1c 59%, #0a0a0a 72%);
+  -webkit-mask: radial-gradient(farthest-side, transparent 64%, #000 65%); mask: radial-gradient(farthest-side, transparent 64%, #000 65%);
+  box-shadow: 0 0 0 1px var(--line-strong);
+  animation: seal-spin 1.6s cubic-bezier(0.5, 0, 0.2, 1) both;
+}
+.seal-dial .core { inset: 30%; background: radial-gradient(circle at 45% 40%, #ff6a6f, var(--accent) 45%, #7d0f15); box-shadow: 0 0 0 3px var(--bg), 0 0 0 4px var(--line-strong); animation: seal-glow 1.6s ease-out both; }
+.seal-dial .idx { left: 50%; top: -5px; width: 0; height: 0; border-radius: 0; transform: translateX(-50%); border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 8px solid var(--accent); }
+@keyframes seal-spin { 0% { transform: rotate(0); } 35% { transform: rotate(250deg); } 65% { transform: rotate(110deg); } 100% { transform: rotate(200deg); } }
+@keyframes seal-glow { 0%, 80% { box-shadow: 0 0 0 3px var(--bg), 0 0 0 4px var(--line-strong); filter: brightness(0.7); } 100% { box-shadow: 0 0 0 3px var(--bg), 0 0 0 4px var(--line-strong), 0 0 26px rgba(212, 42, 51, 0.85); filter: brightness(1.15); } }

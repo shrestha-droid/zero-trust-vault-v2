@@ -7,10 +7,10 @@
   <meta name="referrer" content="no-referrer">
   <meta name="description" content="Client-side, zero-knowledge encryption. Split keys into Shamir shards, harden passphrases with Argon2id, and keep vaults on your device or in the cloud. No server ever sees a key.">
   <title>Zero-Trust Vault</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23000'/%3E%3Cpath d='M16 5 26 11v10l-10 6-10-6V11z' fill='none' stroke='%23d42a33' stroke-width='2.2' stroke-linejoin='round'/%3E%3Ccircle cx='16' cy='16' r='3' fill='%23d42a33'/%3E%3C/svg%3E">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23050505'/%3E%3Ccircle cx='16' cy='16' r='11.5' fill='none' stroke='%23efece6' stroke-width='1.6'/%3E%3Ccircle cx='16' cy='16' r='5' fill='none' stroke='%23efece6' stroke-width='1.6'/%3E%3Cpath d='M16 3v6' stroke='%23d42a33' stroke-width='2.4'/%3E%3Ccircle cx='16' cy='16' r='1.8' fill='%23d42a33'/%3E%3C/svg%3E">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <meta name="theme-color" content="#000000">
+  <meta name="theme-color" content="#050505">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Vault">
   <link rel="stylesheet" href="/src/style.css">
@@ -21,11 +21,7 @@
 
   <header class="topbar">
     <a class="brand" href="#seal" aria-label="Zero-Trust Vault home">
-      <svg class="mark" viewBox="0 0 32 32" aria-hidden="true">
-        <path d="M16 3 27.3 9.5v13L16 29 4.7 22.5v-13z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
-        <path d="M16 16V3M16 16l11.3 6.5M16 16 4.7 22.5" stroke="currentColor" stroke-width="1.6" opacity=".45"/>
-        <circle cx="16" cy="16" r="3.2" fill="currentColor"/>
-      </svg>
+      <svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="14.2" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="16" cy="16" r="11.2" fill="none" stroke="currentColor" stroke-width="2.6" stroke-dasharray=".7 3.209" opacity=".5" transform="rotate(-90 16 16)"/><circle cx="16" cy="16" r="6.2" fill="none" stroke="currentColor" stroke-width="1.4"/><path class="idx" d="M16 .8v6" stroke-width="2.2"/><circle class="dot" cx="16" cy="16" r="1.8"/></svg>
       <span class="brand-text"><strong>Zero-Trust Vault <span class="pro-badge" id="pro-badge" hidden>PRO</span></strong><small>v<span id="app-version"></span> · zero-knowledge</small></span>
     </a>
     <nav class="tabs" role="tablist" aria-label="Sections">
@@ -485,7 +481,7 @@
   <!-- Sealed result -->
   <dialog id="sealed-dialog" class="sheet" aria-labelledby="sealed-title">
     <header class="sheet-head">
-      <div class="badge wax"><i data-icon="lock"></i></div>
+      <div class="seal-dial" aria-hidden="true"><span class="ring"></span><span class="core"></span><span class="idx"></span></div>
       <div><h2 id="sealed-title">Vault sealed</h2><p class="hint" id="sealed-sub"></p></div>
     </header>
     <div class="callout warn" id="sealed-warn"><i data-icon="alert"></i><div><strong>Save your shards now.</strong> They are shown once. Nobody, including us, can recover them. Give each shard to a different person or place.</div></div>
@@ -504,7 +500,7 @@
   <dialog id="auth-dialog" class="sheet narrow auth" aria-labelledby="auth-title">
     <button class="icon-btn auth-close" id="auth-close" type="button" aria-label="Close"><i data-icon="x"></i></button>
     <div class="auth-head">
-      <svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3 27.3 9.5v13L16 29 4.7 22.5v-13z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M16 16V3M16 16l11.3 6.5M16 16 4.7 22.5" stroke="currentColor" stroke-width="1.6" opacity=".45"/><circle cx="16" cy="16" r="3.2" fill="currentColor"/></svg>
+      <svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="14.2" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="16" cy="16" r="11.2" fill="none" stroke="currentColor" stroke-width="2.6" stroke-dasharray=".7 3.209" opacity=".5" transform="rotate(-90 16 16)"/><circle cx="16" cy="16" r="6.2" fill="none" stroke="currentColor" stroke-width="1.4"/><path class="idx" d="M16 .8v6" stroke-width="2.2"/><circle class="dot" cx="16" cy="16" r="1.8"/></svg>
       <h2 id="auth-title">Sign in to Zero-Trust Vault</h2>
       <p class="hint">Sync vaults across devices and use Legacy. Your account can't open your vaults. Only your keys can.</p>
     </div>

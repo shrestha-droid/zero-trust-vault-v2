@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { copyFileSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { cpSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { defineConfig, loadEnv, type Plugin } from 'vite';
 import { viteSingleFile } from 'vite-plugin-singlefile';
 
@@ -30,6 +30,7 @@ function csp(supabaseUrl?: string, googleDrive = false): Plugin {
         "default-src 'none'",
         `script-src ${scripts[0]} 'wasm-unsafe-eval'`, // Argon2id runs as WebAssembly
         `style-src ${styles[0]}`,
+        "font-src data:", // fonts are inlined into the single file
         "img-src 'self' data: blob:",
         `connect-src ${connect}`,
         "worker-src 'self' blob:", // crypto runs in an inline (blob:) worker
@@ -51,10 +52,9 @@ function site(siteUrl: string): Plugin {
     name: 'ztv-site',
     apply: 'build',
     closeBundle() {
-      mkdirSync('dist', { recursive: true });
-      for (const f of readdirSync('site')) {
-        if (f.endsWith('.html')) writeFileSync(`dist/${f}`, readFileSync(`site/${f}`, 'utf8').replaceAll('%SITE_URL%', siteUrl));
-        else copyFileSync(`site/${f}`, `dist/${f}`);
+      cpSync('site', 'dist', { recursive: true });
+      for (const f of readdirSync('site').filter((f) => f.endsWith('.html'))) {
+        writeFileSync(`dist/${f}`, readFileSync(`site/${f}`, 'utf8').replaceAll('%SITE_URL%', siteUrl));
       }
     },
   };
