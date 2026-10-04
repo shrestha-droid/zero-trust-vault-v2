@@ -4,253 +4,245 @@
   <meta charset="utf-8">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; font-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="color-scheme" content="dark">
+  <meta name="color-scheme" content="light">
   <meta name="referrer" content="no-referrer">
   <title>Zero-Trust Vault: some secrets should outlive you</title>
-  <meta name="description" content="Encrypt seed phrases, passwords, wills and files on your own device. Split the key between people you trust, so it opens only when enough of them agree. If you go silent, Legacy hands everything over. Nobody, not even us, can open your vault alone.">
+  <meta name="description" content="Encrypt seed phrases, passwords, wills and files on your own device. Split the key into coupons for the people you trust: any three of five open it, fewer learn nothing. If you go silent, Legacy hands everything over. Nobody, not even us, can open it alone.">
   <link rel="canonical" href="%SITE_URL%/">
   <meta property="og:type" content="website">
   <meta property="og:title" content="Zero-Trust Vault">
-  <meta property="og:description" content="Some secrets should outlive you. None should leak. Split keys, passkeys, a dead man's switch, and nothing for us to leak.">
+  <meta property="og:description" content="Some secrets should outlive you. None should leak. A certificate of custody for what matters most.">
   <meta property="og:image" content="%SITE_URL%/og.png">
   <meta property="og:url" content="%SITE_URL%/">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="theme-color" content="#050505">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23050505'/%3E%3Ccircle cx='16' cy='16' r='11.5' fill='none' stroke='%23efece6' stroke-width='1.6'/%3E%3Ccircle cx='16' cy='16' r='5' fill='none' stroke='%23efece6' stroke-width='1.6'/%3E%3Cpath d='M16 3v6' stroke='%23d42a33' stroke-width='2.4'/%3E%3Ccircle cx='16' cy='16' r='1.8' fill='%23d42a33'/%3E%3C/svg%3E">
-  <link rel="preload" href="/fonts/instrument-serif.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="preload" href="/fonts/geist.woff2" as="font" type="font/woff2" crossorigin>
+  <meta name="theme-color" content="#f3eee3">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23f3eee3'/%3E%3Cg fill='none' stroke='%2316120f' stroke-width='1.1'%3E%3Ccircle cx='16' cy='16' r='13.5'/%3E%3Ccircle cx='22' cy='16' r='5.2'/%3E%3Ccircle cx='19' cy='21.2' r='5.2'/%3E%3Ccircle cx='13' cy='21.2' r='5.2'/%3E%3Ccircle cx='10' cy='16' r='5.2'/%3E%3Ccircle cx='13' cy='10.8' r='5.2'/%3E%3Ccircle cx='19' cy='10.8' r='5.2'/%3E%3C/g%3E%3Ccircle cx='16' cy='16' r='2.4' fill='%23b5121b'/%3E%3C/svg%3E">
+  <link rel="preload" href="/fonts/bodoni.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/archivo.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/site.css">
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Zero-Trust Vault","applicationCategory":"SecurityApplication","operatingSystem":"Web, iOS, Android, macOS, Windows, Linux","description":"Client-side, zero-knowledge encryption with Shamir secret sharing, passkeys and a dead man's switch.","offers":[{"@type":"Offer","name":"Free","price":"0","priceCurrency":"USD"},{"@type":"Offer","name":"Pro (yearly)","price":"60","priceCurrency":"USD"},{"@type":"Offer","name":"Lifetime","price":"199","priceCurrency":"USD"}]}</script>
 </head>
 <body>
-  <div class="backdrop" aria-hidden="true"></div>
+  <div class="micro" aria-hidden="true"><span>Zero-Trust Vault · Certificate of custody · Non-negotiable · Opens only by quorum · Keys never leave the holder · Zero-knowledge · Zero-Trust Vault · Certificate of custody · Non-negotiable · Opens only by quorum · Keys never leave the holder · Zero-knowledge ·</span></div>
 
   <header class="nav">
     <div class="wrap">
       <a class="logo" href="/" aria-label="Zero-Trust Vault home">
-        <svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="14.2" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="16" cy="16" r="11.2" fill="none" stroke="currentColor" stroke-width="2.6" stroke-dasharray=".7 3.209" opacity=".5" transform="rotate(-90 16 16)"/><circle cx="16" cy="16" r="6.2" fill="none" stroke="currentColor" stroke-width="1.4"/><path class="idx" d="M16 .8v6" stroke-width="2.2"/><circle class="dot" cx="16" cy="16" r="1.8"/></svg>
-        Zero-Trust Vault
+        <svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1"><circle cx="16" cy="16" r="15"/><circle cx="22" cy="16" r="5.6"/><circle cx="19" cy="21.2" r="5.6"/><circle cx="13" cy="21.2" r="5.6"/><circle cx="10" cy="16" r="5.6"/><circle cx="13" cy="10.8" r="5.6"/><circle cx="19" cy="10.8" r="5.6"/></g><circle class="dot" cx="16" cy="16" r="2.4"/></svg>
+        <span>Zero-Trust Vault</span>
       </a>
-      <nav aria-label="Sections"><a href="#method">Method</a><a href="#legacy">Legacy</a><a href="#security">Security</a><a href="#pricing">Pricing</a><a href="#faq">FAQ</a></nav>
+      <nav aria-label="Sections"><a href="#articles">Method</a><a href="#legacy">Legacy</a><a href="#specs">Security</a><a href="#notes">Pricing</a><a href="#qa">Questions</a></nav>
       <a class="nav-signin" href="/app/#signin">Sign in</a>
-      <a class="btn primary" href="/app/">Open the vault</a>
+      <a class="btn" href="/app/">Open the vault</a>
     </div>
   </header>
 
   <main>
-    <div class="wrap hero">
-      <div>
-        <p class="eyebrow">Private by design · Zero-knowledge</p>
-        <h1>Some secrets should outlive you. <em>None should leak.</em></h1>
-        <p class="lede">Encrypt seed phrases, passwords, wills and files on your own device. Split the key between people you trust, so it opens only when enough of them agree. If you ever go silent, Legacy makes sure they know what to do.</p>
+    <section class="hero wrap">
+      <div class="hero-copy">
+        <p class="label"><span class="red">Nº 001</span> · Private by design</p>
+        <h1><span class="l">Some secrets</span> <span class="l">should outlive you.</span> <em>None should leak.</em></h1>
+        <p class="lede">Encrypt seed phrases, passwords, wills and files on your own device. Split the key into coupons for the people you trust: any three can open it, two learn nothing. If you ever go silent, Legacy makes sure they know what to do.</p>
         <div class="cta">
-          <a class="btn primary lg arrow" href="/app/">Seal your first vault, free</a>
-          <a class="btn lg" href="#method">How it works</a>
+          <a class="btn lg" href="/app/">Seal your first vault, free</a>
+          <a class="btn lg ghost" href="#articles">How it works</a>
         </div>
-        <div class="facts"><span>Runs on your device</span><span>Works offline</span><span>Audited Shamir library</span><span>Post-quantum design</span></div>
+        <dl class="facts">
+          <div><dt>Encrypted</dt><dd>On your device</dd></div>
+          <div><dt>Held by</dt><dd>People you choose</dd></div>
+          <div><dt>Readable by us</dt><dd class="red">Never</dd></div>
+        </dl>
       </div>
 
       <div class="hero-art" aria-hidden="true">
-        <div class="dial">
-          <div class="dial-glow"></div>
-          <div class="dial-shadow"></div>
-          <div class="dial-bezel"></div>
-          <div class="dial-rim"></div>
-          <div class="dial-turn">
-            <svg viewBox="0 0 400 400">
-              <circle class="minor" cx="200" cy="200" r="176" transform="rotate(-90 200 200)"/>
-              <circle class="major" cx="200" cy="200" r="172" transform="rotate(-90 200 200)"/>
-              <circle class="track" cx="200" cy="200" r="150"/>
-              <text x="200" y="66">0</text>
-              <text x="200" y="66" transform="rotate(36 200 200)">10</text>
-              <text x="200" y="66" transform="rotate(72 200 200)">20</text>
-              <text x="200" y="66" transform="rotate(108 200 200)">30</text>
-              <text x="200" y="66" transform="rotate(144 200 200)">40</text>
-              <text x="200" y="66" transform="rotate(180 200 200)">50</text>
-              <text x="200" y="66" transform="rotate(216 200 200)">60</text>
-              <text x="200" y="66" transform="rotate(252 200 200)">70</text>
-              <text x="200" y="66" transform="rotate(288 200 200)">80</text>
-              <text x="200" y="66" transform="rotate(324 200 200)">90</text>
-            </svg>
-            <div class="dial-grip"></div>
-            <div class="dial-knob"></div>
+        <article class="cert">
+          <div class="cert-band"></div>
+          <div class="cert-body">
+            <img class="cert-water" src="/art/rosette-faint.svg" alt="">
+            <header class="cert-head">
+              <span class="label">Zero-Trust Vault</span>
+              <h2>Certificate of Custody</h2>
+              <span class="serial">Nº ZTV-7F1A-0042</span>
+            </header>
+            <dl class="cert-fields">
+              <div><dt>Contents</dt><dd>Sealed, 1 item</dd></div>
+              <div><dt>Opens with</dt><dd>Any 3 of 5 coupons</dd></div>
+              <div><dt>Sealed</dt><dd>05 Oct 2026</dd></div>
+              <div><dt>Readable by issuer</dt><dd>No</dd></div>
+            </dl>
+            <ol class="coupons">
+              <li class="presented"><img src="/art/rosette-ink.svg" alt=""><b>I</b><span>A3·91</span></li>
+              <li class="presented"><img src="/art/rosette-ink.svg" alt=""><b>II</b><span>C0·4E</span></li>
+              <li><img src="/art/rosette-ink.svg" alt=""><b>III</b><span>77·B2</span></li>
+              <li class="presented"><img src="/art/rosette-ink.svg" alt=""><b>IV</b><span>5D·18</span></li>
+              <li class="tear"><img src="/art/rosette-ink.svg" alt=""><b>V</b><span>E9·0C</span></li>
+            </ol>
           </div>
-          <div class="dial-core"></div>
-          <div class="dial-index"></div>
-        </div>
-        <span class="dial-label">Any 3 of 5 keys · nothing less</span>
-      </div>
-    </div>
-
-    <div class="ticker" aria-hidden="true"><div class="ticker-track">
-      <span>AES-256-GCM</span><span>Argon2id</span><span>Shamir secret sharing</span><span>WebAuthn passkeys</span><span>Zero-knowledge</span><span>Works offline</span><span>Forged-shard detection</span><span>Post-quantum design</span>
-      <span>AES-256-GCM</span><span>Argon2id</span><span>Shamir secret sharing</span><span>WebAuthn passkeys</span><span>Zero-knowledge</span><span>Works offline</span><span>Forged-shard detection</span><span>Post-quantum design</span>
-    </div></div>
-
-    <section class="block" id="method">
-      <div class="wrap">
-        <div class="head reveal">
-          <p class="eyebrow">The method</p>
-          <h2 class="display">Three moves. <em>No one to trust.</em></h2>
-          <p class="lede">Everything happens in your browser. The key is created on your device, used once, then destroyed. What remains is a locked file nobody can read, and pieces of a key nobody can use alone.</p>
-        </div>
-        <div class="method">
-          <article class="reveal"><span class="numeral">I</span><h3>Seal</h3><p>Type a secret or drop any file up to 100&nbsp;MB. It's padded and encrypted with AES-256-GCM in an isolated worker before anything is saved.</p></article>
-          <article class="reveal"><span class="numeral">II</span><h3>Split</h3><p>Choose who can open it: any three of five people, a passphrase, both together, or your passkey. Print a recovery kit with a QR code for each person.</p></article>
-          <article class="reveal"><span class="numeral">III</span><h3>Recover</h3><p>Bring the vault and enough keys. Typos are caught, forged keys are named and set aside, and it opens, even offline.</p></article>
-        </div>
+          <div class="cert-band"></div>
+          <svg class="seal" viewBox="0 0 200 200">
+            <defs><path id="sealpath" d="M100 100m-80 0a80 80 0 1 1 160 0a80 80 0 1 1-160 0"/></defs>
+            <circle cx="100" cy="100" r="97" class="ring"/><circle cx="100" cy="100" r="66" class="ring"/>
+            <text><textPath href="#sealpath" textLength="497" lengthAdjust="spacing">ZERO-TRUST VAULT · SEALED · ZERO-KNOWLEDGE · NON-TRANSFERABLE ·</textPath></text>
+            <image href="/art/rosette-red.svg" x="38" y="38" width="124" height="124"/>
+          </svg>
+        </article>
       </div>
     </section>
 
-    <section class="block" id="uses">
-      <div class="wrap">
-        <div class="head reveal">
-          <p class="eyebrow">Built for</p>
-          <h2 class="display">For what can't be <em>lost</em>, or <em>leaked</em>.</h2>
-        </div>
-        <div class="bento">
-          <article class="tile w4 reveal">
-            <span class="tag">01 · Inheritance</span>
-            <svg class="art" viewBox="0 0 200 200" aria-hidden="true"><circle cx="100" cy="100" r="92"/><circle cx="100" cy="100" r="64"/><circle cx="100" cy="100" r="36"/><circle class="hot" cx="100" cy="8" r="7"/><circle class="hot" cx="180" cy="146" r="7"/><circle cx="20" cy="146" r="7"/><circle class="hot" cx="36" cy="38" r="7"/><circle cx="164" cy="38" r="7"/><circle class="fill-hot" cx="100" cy="100" r="5"/></svg>
-            <h3>Crypto that outlives its owner</h3>
-            <p>Seed phrases your family can actually recover, without any one of them able to take it early.</p>
-          </article>
-          <article class="tile w2 reveal">
-            <span class="tag">02 · Family</span>
-            <svg class="art" viewBox="0 0 200 200" aria-hidden="true"><rect x="40" y="30" width="110" height="140"/><rect x="56" y="46" width="110" height="140"/><path d="M76 86h70M76 106h70M76 126h46"/><path class="hot" d="M76 146h24"/></svg>
-            <h3>The emergency file</h3>
-            <p>Accounts, policies, the will's location: everything someone would need.</p>
-          </article>
-          <article class="tile w2 reveal">
-            <span class="tag">03 · Business</span>
-            <svg class="art" viewBox="0 0 200 200" aria-hidden="true"><rect x="30" y="30" width="140" height="140"/><path d="M100 30 88 92l38 18-30 60M88 92 30 120M126 110l44-26"/><circle class="fill-hot" cx="100" cy="100" r="5"/></svg>
-            <h3>Break-glass access</h3>
-            <p>Root credentials split between directors. Two of three can act; nobody acts alone.</p>
-          </article>
-          <article class="tile w4 reveal">
-            <span class="tag">04 · Off the grid</span>
-            <svg class="art" viewBox="0 0 200 200" aria-hidden="true"><path d="M30 120a100 100 0 0 1 140 0M55 145a64 64 0 0 1 90 0M80 170a28 28 0 0 1 40 0"/><path class="hot" d="M30 40 170 180"/></svg>
-            <h3>Journalists, travelers, the careful</h3>
-            <p>Air-gap mode makes the browser itself refuse every network request while you work. Proven, not promised.</p>
-          </article>
-        </div>
+    <div class="band" aria-hidden="true"></div>
+
+    <section class="block wrap" id="articles">
+      <header class="head reveal">
+        <p class="label">The method</p>
+        <h2>Three articles. <em>No one to trust.</em></h2>
+        <p class="lede">Everything happens in your browser. The key is created on your device, used once, then destroyed. What remains is a locked file nobody can read, and coupons nobody can use alone.</p>
+      </header>
+      <div class="articles">
+        <article class="reveal"><span class="num">I</span><h3>Seal</h3><p>Type a secret or drop any file up to 100&nbsp;MB. It's padded and encrypted with AES-256-GCM in an isolated worker before anything is saved.</p></article>
+        <article class="reveal"><span class="num">II</span><h3>Split</h3><p>The key becomes coupons: hand one each to people you trust. Any three of five open it; fewer reveal nothing at all. Print them as a recovery kit.</p></article>
+        <article class="reveal"><span class="num">III</span><h3>Recover</h3><p>Bring the vault and enough coupons. Typos are caught, forged coupons are named and set aside, and it opens, even offline.</p></article>
       </div>
+    </section>
+
+    <section class="block wrap" id="uses">
+      <header class="head reveal">
+        <p class="label">Schedule of uses</p>
+        <h2>For what can't be <em>lost</em>, or <em>leaked</em>.</h2>
+      </header>
+      <ol class="ledger reveal">
+        <li><span class="n">01</span><span class="t">Crypto that outlives its owner</span><span class="lead"></span><span class="c">Inheritance</span><p>Seed phrases your family can actually recover, without any one of them able to take it early.</p></li>
+        <li><span class="n">02</span><span class="t">The family emergency file</span><span class="lead"></span><span class="c">Household</span><p>Accounts, policies, the will's location: everything someone would need on the worst day.</p></li>
+        <li><span class="n">03</span><span class="t">Break-glass credentials</span><span class="lead"></span><span class="c">Business</span><p>Root access split between directors. Two of three can act; nobody acts alone.</p></li>
+        <li><span class="n">04</span><span class="t">Off the grid</span><span class="lead"></span><span class="c">Field work</span><p>Air-gap mode makes the browser itself refuse every network request while you work. Proven, not promised.</p></li>
+      </ol>
     </section>
 
     <section class="legacy" id="legacy">
-      <div class="wrap">
-        <p class="eyebrow reveal">Legacy · Pro</p>
-        <h2 class="quote reveal">Your card expires when you do. <em>Legacy doesn't.</em></h2>
-        <p class="lede reveal">Pick the people. Keep living. If you ever go quiet, they get your instructions, your encrypted vaults, and one escrowed key, while we still hold nothing that opens anything.</p>
-        <ol class="timeline reveal">
-          <li><b>You check in</b><span>Simply opening the app counts. So does one click in a reminder.</span></li>
-          <li><b>You go quiet</b><span>After 30 days to a year, your choice, reminders begin.</span></li>
-          <li><b>Grace period</b><span>One more week to two months to respond.</span></li>
-          <li><b>Release</b><span>Your trustees are contacted with everything you prepared.</span></li>
-        </ol>
-        <div class="legacy-points reveal">
-          <div><strong>Up to 10 trustees</strong><span>Name the people, write the message.</span></div>
-          <div><strong>Fires even if billing lapses</strong><span>That's the point of it.</span></div>
-          <div><strong>Still zero-knowledge</strong><span>One escrowed shard can't open a vault.</span></div>
+      <div class="wrap legacy-grid">
+        <div class="reveal">
+          <p class="label">Legacy · Pro</p>
+          <h2>Your card expires when you do. <em>Legacy doesn't.</em></h2>
+          <p class="lede">Name the people. Keep living. If you ever go quiet, they receive your instructions, your encrypted vaults and one escrowed coupon, while we still hold nothing that opens anything.</p>
+          <a class="btn lg light" href="/app/#legacy">Set up Legacy</a>
         </div>
+        <article class="envelope reveal">
+          <header><span class="label">Sealed instructions</span><span class="serial">Nº L-0042</span></header>
+          <h3>To be opened by my&nbsp;trustees</h3>
+          <ol class="entries">
+            <li><time>Day 0</time><span>You check in. Simply opening the app counts.</span></li>
+            <li><time>Day 90</time><span>You've gone quiet. Weekly reminders begin.</span></li>
+            <li><time>Day 104</time><span>Grace period ends. No reply.</span></li>
+            <li class="release"><time>Release</time><span>Trustees receive everything you prepared, even if billing has lapsed.</span></li>
+          </ol>
+          <svg class="seal small" viewBox="0 0 200 200" aria-hidden="true">
+            <defs><path id="sealpath2" d="M100 100m-80 0a80 80 0 1 1 160 0a80 80 0 1 1-160 0"/></defs>
+            <circle cx="100" cy="100" r="97" class="ring"/><circle cx="100" cy="100" r="66" class="ring"/>
+            <text><textPath href="#sealpath2" textLength="497" lengthAdjust="spacing">LEGACY · OPEN ONLY ON RELEASE · LEGACY · OPEN ONLY ON RELEASE ·</textPath></text>
+            <image href="/art/rosette-red.svg" x="38" y="38" width="124" height="124"/>
+          </svg>
+        </article>
       </div>
     </section>
 
-    <section class="block" id="security">
-      <div class="wrap">
-        <div class="head reveal">
-          <p class="eyebrow">Security</p>
-          <h2 class="display">Verify, <em>don't trust.</em></h2>
-          <p class="lede">We built this so that we are never the weak point.</p>
-        </div>
-        <div class="specs">
-          <article class="spec reveal"><span class="k">Isolation</span><h3>Keys never touch the page</h3><p>All key handling runs in a dedicated Web Worker, out of reach of the page and its extensions.</p></article>
-          <article class="spec reveal"><span class="k">Key slots</span><h3>Independent ways in</h3><p>Shards, passphrase, both together, or a hardware passkey. Each is cryptographically bound to its vault.</p></article>
-          <article class="spec reveal"><span class="k">Integrity</span><h3>Forgeries get named</h3><p>Hand over a tampered key and the app identifies it, then opens the vault from the honest ones.</p></article>
-          <article class="spec reveal"><span class="k">Hardening</span><h3>A locked-down browser</h3><p>Strict Content Security Policy and Trusted Types. No third-party scripts, no CDNs, no trackers. Ever.</p></article>
-          <article class="spec reveal"><span class="k">Quantum</span><h3>Built for what's next</h3><p>No public-key cryptography in the vault format. A quantum computer gets nothing better than brute force.</p></article>
-          <article class="spec reveal"><span class="k">Longevity</span><h3>Outlives us</h3><p>The whole app is one HTML file that runs offline, published with a SHA-256 checksum. If we vanish, your vaults still open.</p></article>
-        </div>
-      </div>
+    <section class="block wrap" id="specs">
+      <header class="head reveal">
+        <p class="label">Specifications</p>
+        <h2>Verify, <em>don't trust.</em></h2>
+        <p class="lede">We built this so that we are never the weak point. Every claim below is testable, and the file format is published in full.</p>
+      </header>
+      <dl class="datasheet reveal">
+        <div><dt>Encryption</dt><dd>AES-256-GCM, authenticated. The header is bound to the ciphertext, so altering any byte fails.</dd></div>
+        <div><dt>Key splitting</dt><dd>Shamir secret sharing over GF(2⁸), via an independently audited library. Forged coupons are identified.</dd></div>
+        <div><dt>Passphrases</dt><dd>Argon2id, 64 MiB memory-hard, three passes.</dd></div>
+        <div><dt>Hardware keys</dt><dd>WebAuthn passkeys with the PRF extension: Touch ID, Windows Hello, YubiKey.</dd></div>
+        <div><dt>Isolation</dt><dd>Every key lives in a dedicated Web Worker, out of reach of the page and its extensions.</dd></div>
+        <div><dt>Hardening</dt><dd>Strict Content Security Policy and Trusted Types. No third-party scripts, no CDNs, no trackers.</dd></div>
+        <div><dt>Quantum</dt><dd>No public-key cryptography in the format. A quantum computer gets nothing better than brute force.</dd></div>
+        <div><dt>Longevity</dt><dd>One HTML file that runs offline, published with a SHA-256 checksum. If we vanish, your vaults still open.</dd></div>
+      </dl>
     </section>
 
-    <section class="block" id="compare">
-      <div class="wrap">
-        <div class="head center reveal"><p class="eyebrow">Compared</p><h2 class="display">The usual ways <em>people do this.</em></h2></div>
-        <table class="table reveal">
-          <thead><tr><th></th><th class="us">Zero-Trust Vault</th><th>A note in a drawer</th><th>Telling one person</th></tr></thead>
-          <tbody>
-            <tr><td>Safe if one copy is stolen</td><td class="us yes">Yes</td><td class="no">No</td><td class="no">No</td></tr>
-            <tr><td>Survives losing a copy</td><td class="us yes">Yes</td><td class="no">No</td><td class="no">No</td></tr>
-            <tr><td>Nobody can read it early</td><td class="us yes">Yes</td><td class="no">No</td><td class="no">No</td></tr>
-            <tr><td>Delivered automatically when needed</td><td class="us yes">Yes</td><td class="no">No</td><td class="no">Maybe</td></tr>
-            <tr><td>Works if the provider disappears</td><td class="us yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
-          </tbody>
-        </table>
-      </div>
+    <section class="block wrap" id="compare">
+      <header class="head center reveal"><p class="label">Compared</p><h2>The usual ways <em>people do this.</em></h2></header>
+      <table class="table reveal">
+        <thead><tr><th></th><th class="us">Zero-Trust Vault</th><th>A note in a drawer</th><th>Telling one person</th></tr></thead>
+        <tbody>
+          <tr><td>Safe if one copy is stolen</td><td class="us yes">Yes</td><td class="no">No</td><td class="no">No</td></tr>
+          <tr><td>Survives losing a copy</td><td class="us yes">Yes</td><td class="no">No</td><td class="no">No</td></tr>
+          <tr><td>Nobody can read it early</td><td class="us yes">Yes</td><td class="no">No</td><td class="no">No</td></tr>
+          <tr><td>Delivered automatically when needed</td><td class="us yes">Yes</td><td class="no">No</td><td class="no">Maybe</td></tr>
+          <tr><td>Works if the provider disappears</td><td class="us yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+        </tbody>
+      </table>
     </section>
 
-    <section class="block" id="pricing">
-      <div class="wrap">
-        <div class="head center reveal"><p class="eyebrow">Pricing</p><h2 class="display">Security is free. <em>Peace of mind is Pro.</em></h2><p class="lede">Every cryptographic feature is free, forever. Opening a vault never requires a plan.</p></div>
-        <div class="prices reveal">
-          <article class="price">
-            <h3>Free</h3>
-            <div class="amount">$0</div>
-            <ul><li>Unlimited vaults on your devices</li><li>Shards, passphrase, two-factor, passkeys</li><li>Your own Google Drive as storage</li><li>Recovery kits, verify drills, QR scanning</li><li>Offline app and air-gap mode</li></ul>
-            <a class="btn block" href="/app/">Start free</a>
-          </article>
-          <article class="price featured">
-            <span class="badge">Most chosen</span>
-            <h3>Pro</h3>
-            <div class="amount">$60<small>/ year</small></div>
-            <ul><li>Everything in Free</li><li>Unlimited encrypted cloud vaults</li><li>Legacy: the dead man's switch</li><li>Up to 10 trustees and an escrow shard</li><li>Releases even if billing lapses</li></ul>
-            <a class="btn primary block arrow" href="/app/#settings">Upgrade in the app</a>
-          </article>
-          <article class="price">
-            <h3>Lifetime</h3>
-            <div class="amount">$199<small>once</small></div>
-            <ul><li>Everything in Pro, forever</li><li>No renewals to forget</li><li>Made for estate planning</li></ul>
-            <a class="btn block" href="/app/#settings">Get Lifetime</a>
-          </article>
-        </div>
-        <p class="fine">Prices in USD. Secure checkout by Stripe. Cancel anytime; your vaults keep working on Free.</p>
+    <section class="block wrap" id="notes">
+      <header class="head center reveal"><p class="label">Pricing</p><h2>Security is free. <em>Peace of mind is Pro.</em></h2><p class="lede">Every cryptographic feature is free, forever. Opening a vault never requires a plan.</p></header>
+      <div class="notes">
+        <article class="note-col reveal">
+          <div class="note">
+            <span class="den tl">0</span><span class="den br">0</span>
+            <img class="note-rosette" src="/art/rosette-faint.svg" alt="">
+            <div class="note-face"><span class="label">Free</span><strong>$0</strong><span class="serial">Nº F-000000</span></div>
+          </div>
+          <ul><li>Unlimited vaults on your devices</li><li>Coupons, passphrase, two-factor, passkeys</li><li>Your own Google Drive as storage</li><li>Recovery kits, drills, QR scanning</li><li>Offline app and air-gap mode</li></ul>
+          <a class="btn ghost block" href="/app/">Start free</a>
+        </article>
+        <article class="note-col featured reveal">
+          <div class="note red">
+            <span class="den tl">60</span><span class="den br">60</span>
+            <img class="note-rosette" src="/art/rosette-faint-red.svg" alt="">
+            <div class="note-face"><span class="label">Pro · yearly</span><strong>$60</strong><span class="serial">Nº P-060060</span></div>
+          </div>
+          <ul><li>Everything in Free</li><li>Unlimited encrypted cloud vaults</li><li>Legacy: the dead man's switch</li><li>Up to 10 trustees and an escrow coupon</li><li>Releases even if billing lapses</li></ul>
+          <a class="btn block" href="/app/#settings">Upgrade in the app</a>
+        </article>
+        <article class="note-col reveal">
+          <div class="note">
+            <span class="den tl">199</span><span class="den br">199</span>
+            <img class="note-rosette" src="/art/rosette-faint.svg" alt="">
+            <div class="note-face"><span class="label">Lifetime</span><strong>$199</strong><span class="serial">Nº L-199199</span></div>
+          </div>
+          <ul><li>Everything in Pro, forever</li><li>No renewals to forget</li><li>Made for estate planning</li></ul>
+          <a class="btn ghost block" href="/app/#settings">Get Lifetime</a>
+        </article>
       </div>
+      <p class="fine">Prices in USD. Secure checkout by Stripe. Cancel anytime; your vaults keep working on Free.</p>
     </section>
 
-    <section class="block" id="faq">
-      <div class="wrap faq-grid">
-        <div class="head">
-          <p class="eyebrow">FAQ</p>
-          <h2 class="display">Questions <em>worth asking.</em></h2>
-          <p class="lede">The file format and threat model are published in full. Nothing here is a black box.</p>
-        </div>
-        <div class="faq">
-          <details><summary>Can you see my secrets?</summary><p>No. Encryption happens on your device before anything is stored, and the keys never leave it. Our servers only ever hold locked files, plus, if you use Legacy, your trustees' contacts, your message to them, and at most one shard, which on its own reveals nothing.</p></details>
-          <details><summary>What if Zero-Trust Vault shuts down?</summary><p>Your vaults still open. Keep the offline app (one HTML file) next to your keys: it needs no server and no internet. The file format is documented, so anyone can audit or re-implement it.</p></details>
-          <details><summary>What happens to Legacy if my payment fails after I'm gone?</summary><p>It still fires. Pro is needed to set up or change a plan, but an armed plan is always delivered. A deceased person's card eventually fails, and Legacy is designed around that.</p></details>
-          <details><summary>What if I lose a key, or someone forges one?</summary><p>With "3 of 5" you can lose two safely. If someone hands over a tampered key, the app tells you which one and opens the vault from the rest. You can re-key at any time to issue fresh keys.</p></details>
-          <details><summary>Has it been audited?</summary><p>The secret-sharing library we use has been independently audited. The app itself hasn't been third-party audited yet. We'll publish that when it happens.</p></details>
-          <details><summary>Do I need an account?</summary><p>No. Everything works without one. Sign in with Google, Apple or email only for vaults synced across devices or for Legacy. You can also keep vaults in your own Google Drive.</p></details>
-          <details><summary>Does it work on my phone?</summary><p>Yes. Open it in your browser and choose "Add to Home Screen". It works offline, scans keys with the camera, and supports Face ID and fingerprint passkeys.</p></details>
-        </div>
+    <section class="block wrap qa-grid" id="qa">
+      <header class="head">
+        <p class="label">Questions &amp; answers</p>
+        <h2>Questions <em>worth asking.</em></h2>
+        <p class="lede">The file format and threat model are published in full. Nothing here is a black box.</p>
+      </header>
+      <div class="qa">
+        <details><summary><i>Q.</i>Can you see my secrets?</summary><p><i>A.</i>No. Encryption happens on your device before anything is stored, and the keys never leave it. Our servers only ever hold locked files, plus, if you use Legacy, your trustees' contacts, your message to them, and at most one coupon, which on its own reveals nothing.</p></details>
+        <details><summary><i>Q.</i>What if Zero-Trust Vault shuts down?</summary><p><i>A.</i>Your vaults still open. Keep the offline app (one HTML file) next to your coupons: it needs no server and no internet. The file format is documented, so anyone can audit or re-implement it.</p></details>
+        <details><summary><i>Q.</i>What happens to Legacy if my payment fails after I'm gone?</summary><p><i>A.</i>It still fires. Pro is needed to set up or change a plan, but an armed plan is always delivered. A deceased person's card eventually fails, and Legacy is designed around that.</p></details>
+        <details><summary><i>Q.</i>What if a coupon is lost, or forged?</summary><p><i>A.</i>With "3 of 5" you can lose two safely. If someone hands over a tampered coupon, the app tells you which one and opens the vault from the rest. You can re-key at any time to issue fresh coupons.</p></details>
+        <details><summary><i>Q.</i>Has it been audited?</summary><p><i>A.</i>The secret-sharing library has been independently audited. The app itself hasn't been third-party audited yet. We'll publish that when it happens.</p></details>
+        <details><summary><i>Q.</i>Do I need an account?</summary><p><i>A.</i>No. Everything works without one. Sign in with Google, Apple or email only for vaults synced across devices or for Legacy. You can also keep vaults in your own Google Drive.</p></details>
+        <details><summary><i>Q.</i>Does it work on my phone?</summary><p><i>A.</i>Yes. Open it in your browser and choose "Add to Home Screen". It works offline, scans coupons with the camera, and supports Face ID and fingerprint passkeys.</p></details>
       </div>
     </section>
 
     <section class="final">
+      <img class="final-rosette" src="/art/rosette-faint.svg" alt="" aria-hidden="true">
       <div class="wrap">
-        <h2 class="display reveal">Five minutes now. <em>Peace of mind for good.</em></h2>
+        <h2 class="reveal">Five minutes now. <em>Peace of mind for good.</em></h2>
         <p class="lede reveal">Seal the one thing your family would need if something happened to you. It's free, and nobody, including us, can read it.</p>
-        <div class="cta reveal"><a class="btn primary lg arrow" href="/app/">Open Zero-Trust Vault</a><a class="btn lg" href="/app/#signin">Sign in</a></div>
+        <div class="cta reveal"><a class="btn lg" href="/app/">Open Zero-Trust Vault</a><a class="btn lg ghost" href="/app/#signin">Sign in</a></div>
       </div>
     </section>
   </main>
 
   <footer>
-    <div class="wrap">
-      <a class="logo" href="/"><svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="14.2" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="16" cy="16" r="6.2" fill="none" stroke="currentColor" stroke-width="1.4"/><path class="idx" d="M16 .8v6" stroke-width="2.2"/><circle class="dot" cx="16" cy="16" r="1.8"/></svg>Zero-Trust Vault</a>
-      <nav aria-label="Legal"><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="#security">Security</a><a href="/app/">App</a></nav>
-      <span>© 2026</span>
+    <div class="band" aria-hidden="true"></div>
+    <div class="wrap foot">
+      <a class="logo" href="/"><svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1"><circle cx="16" cy="16" r="15"/><circle cx="22" cy="16" r="5.6"/><circle cx="19" cy="21.2" r="5.6"/><circle cx="13" cy="21.2" r="5.6"/><circle cx="10" cy="16" r="5.6"/><circle cx="13" cy="10.8" r="5.6"/><circle cx="19" cy="10.8" r="5.6"/></g><circle class="dot" cx="16" cy="16" r="2.4"/></svg><span>Zero-Trust Vault</span></a>
+      <nav aria-label="Legal"><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="#specs">Security</a><a href="/app/">App</a></nav>
+      <span class="serial">© 2026 · Nº ZTV-0001</span>
     </div>
   </footer>
 </body>
