@@ -1,69 +1,43 @@
-@font-face { font-family: "Instrument Serif"; src: url("./fonts/instrument-serif.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: swap; }
-@font-face { font-family: "Instrument Serif"; src: url("./fonts/instrument-serif-italic.woff2") format("woff2"); font-weight: 400; font-style: italic; font-display: swap; }
-@font-face { font-family: "Geist"; src: url("./fonts/geist.woff2") format("woff2"); font-weight: 100 900; font-style: normal; font-display: swap; }
-@font-face { font-family: "Geist Mono"; src: url("./fonts/geist-mono.woff2") format("woff2"); font-weight: 100 900; font-style: normal; font-display: swap; }
-/* ============ Tokens ============
-   Stark noir: pure black, hairlines, square corners, monochrome type, one red.
-   Red is reserved for the primary action, destructive actions and live signals, so it always means something. */
-:root {
-  --bg: #050505;
-  --bg-2: #0a0a0a;
-  --surface: #0b0b0b;
-  --surface-solid: #0f0f0f;
-  --surface-2: #151515;
-  --line: rgba(239, 236, 230, 0.08);
-  --line-strong: rgba(239, 236, 230, 0.16);
-  --fg: #efece6;
-  --fg-2: #a8a49d;
-  --fg-3: #7d7973;
-  --accent: #d42a33;
-  --accent-2: #8c141a;
-  --accent-hi: #ff4a52;
-  --accent-ink: #fff;
-  --accent-soft: rgba(212, 42, 51, 0.12);
-  --ok: #f2f1ee;
-  --ok-soft: rgba(255, 255, 255, 0.06);
-  --warn: #e8a33d;
-  --warn-soft: rgba(232, 163, 61, 0.1);
-  --danger: #ff5c47;
-  --danger-soft: rgba(255, 92, 71, 0.1);
-  --glow: 0 0 0 1px var(--fg);
-  --shadow: none;
-  --radius: 4px;
-  --radius-sm: 2px;
-  --font: "Geist", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --serif: "Instrument Serif", ui-serif, "New York", "Iowan Old Style", Georgia, serif;
-  --mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
-  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .045 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  color-scheme: dark;
-}
+@font-face { font-family: "Bodoni Moda"; src: url("./fonts/bodoni.woff2") format("woff2"); font-weight: 400 900; font-style: normal; font-display: swap; }
+@font-face { font-family: "Bodoni Moda"; src: url("./fonts/bodoni-italic.woff2") format("woff2"); font-weight: 400 900; font-style: italic; font-display: swap; }
+@font-face { font-family: "Archivo"; src: url("./fonts/archivo.woff2") format("woff2"); font-weight: 100 900; font-stretch: 62% 125%; font-style: normal; font-display: swap; }
+@font-face { font-family: "IBM Plex Mono"; src: url("./fonts/plex-mono.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "IBM Plex Mono"; src: url("./fonts/plex-mono-500.woff2") format("woff2"); font-weight: 500; font-display: swap; }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    --bg: #fafaf9;
-    --bg-2: #f2f2f0;
-    --surface: #fff;
-    --surface-solid: #fff;
-    --surface-2: #f4f4f2;
-    --line: rgba(0, 0, 0, 0.1);
-    --line-strong: rgba(0, 0, 0, 0.2);
-    --fg: #0a0a0a;
-    --fg-2: #4d4d4d;
-    --fg-3: #6f6f6f;
-    --accent: #c1121f;
-    --accent-2: #7a0a12;
-    --accent-hi: #c1121f;
-    --accent-ink: #fff;
-    --accent-soft: rgba(193, 18, 31, 0.07);
-    --ok: #0a0a0a;
-    --ok-soft: rgba(0, 0, 0, 0.05);
-    --warn: #9a5b06;
-    --warn-soft: rgba(154, 91, 6, 0.09);
-    --danger: #c2321f;
-    --danger-soft: rgba(194, 50, 31, 0.07);
-    color-scheme: light;
-  }
+/* ============ Tokens ============
+   Security printing: banknote paper, intaglio ink, security red. Same system as the marketing site.
+   Red = act. Ink = confirmed. Vermilion (always with an icon) = danger. */
+:root {
+  --bg: #f3eee3;
+  --bg-2: #ebe4d4;
+  --surface: #f8f4ea;
+  --surface-solid: #fbf8f1;
+  --surface-2: #efe8da;
+  --line: rgba(22, 18, 15, 0.14);
+  --line-strong: rgba(22, 18, 15, 0.3);
+  --fg: #16120f;
+  --fg-2: #4a433c;
+  --fg-3: #776d64;
+  --accent: #b5121b;
+  --accent-2: #8c0d14;
+  --accent-hi: #b5121b;
+  --accent-ink: #f8f4ea;
+  --accent-soft: rgba(181, 18, 27, 0.07);
+  --ok: #16120f;
+  --ok-soft: rgba(22, 18, 15, 0.05);
+  --warn: #9a5b06;
+  --warn-soft: rgba(154, 91, 6, 0.09);
+  --danger: #c2410c;
+  --danger-soft: rgba(194, 65, 12, 0.08);
+  --glow: 0 0 0 1px var(--fg);
+  --shadow: 0 1px 0 rgba(255, 255, 255, 0.6) inset, 0 18px 36px -26px rgba(40, 25, 10, 0.35);
+  --radius: 2px;
+  --radius-sm: 1px;
+  --font: "Archivo", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --serif: "Bodoni Moda", "Didot", "Bodoni 72", Georgia, serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  color-scheme: light;
 }
 
 /* ============ Base ============ */
@@ -102,13 +76,8 @@ a { color: var(--accent-hi); }
 .icon { width: 1.1em; height: 1.1em; flex: none; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 i[data-icon] { display: inline-flex; }
 
-/* Ambient background: near-flat black, faint grain, one low red light. */
-.backdrop {
-  position: fixed; inset: 0; z-index: -1; pointer-events: none;
-  background:
-    var(--grain),
-    radial-gradient(60rem 30rem at 92% -14%, color-mix(in srgb, var(--accent) 13%, transparent), transparent 62%);
-}
+/* Ambient background: safety paper. */
+.backdrop { position: fixed; inset: 0; z-index: -1; pointer-events: none; background: url("./art/paper.svg"), radial-gradient(120rem 60rem at 50% -10%, #f7f3ea, transparent 60%), var(--bg); }
 /* ============ Top bar ============ */
 .topbar {
   position: sticky; top: 0; z-index: 20;
@@ -125,7 +94,7 @@ i[data-icon] { display: inline-flex; }
 .mark .idx { stroke: var(--accent); }
 .mark .dot { fill: var(--accent); }
 .brand-text { display: grid; line-height: 1.15; }
-.brand-text strong { font: 500 0.76rem var(--mono); letter-spacing: 0.26em; text-transform: uppercase; }
+.brand-text strong { font: 700 0.78rem var(--font); font-stretch: 125%; letter-spacing: 0.16em; text-transform: uppercase; }
 .brand-text small { color: var(--fg-3); font-size: 0.72rem; font-family: var(--mono); }
 
 .tabs { display: flex; gap: 0.15rem; padding: 0.2rem; background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius); }
@@ -160,7 +129,7 @@ main { width: 100%; max-width: 1180px; margin: 0 auto; padding: clamp(1.25rem, 4
 .hero { margin-bottom: 2rem; max-width: 720px; }
 .hero.row { max-width: none; display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; flex-wrap: wrap; }
 .eyebrow { display: flex; align-items: center; gap: 0.7rem; font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.26em; text-transform: uppercase; color: var(--fg-2); margin-bottom: 0.9rem; }
-.eyebrow::before { content: ""; width: 7px; height: 7px; background: var(--accent); flex: none; box-shadow: 0 0 12px var(--accent); }
+.eyebrow::before { content: ""; width: 7px; height: 7px; background: var(--accent); flex: none; }
 .hero h1 { font-size: clamp(2.5rem, 5.4vw, 4.2rem); font-weight: 400; letter-spacing: -0.025em; line-height: 0.98; }
 .hero h1 em { font-family: var(--serif); font-style: italic; font-weight: 400; color: var(--accent-hi); }
 .lede { color: var(--fg-2); margin-top: 0.75rem; font-size: 1.02rem; max-width: 62ch; }
@@ -170,7 +139,7 @@ main { width: 100%; max-width: 1180px; margin: 0 auto; padding: clamp(1.25rem, 4
 .steps { display: grid; gap: 1.25rem; }
 
 .card {
-  background: linear-gradient(180deg, rgba(239, 236, 230, 0.03), transparent 120px), var(--surface);
+  background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: clamp(1.1rem, 2.5vw, 1.5rem);
@@ -236,8 +205,8 @@ select { appearance: none; background-image: linear-gradient(45deg, transparent 
 .btn:hover:not(:disabled) { border-color: var(--fg-3); }
 .btn:active:not(:disabled) { transform: scale(0.98); }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
-.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
-.btn.primary:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 88%, white); box-shadow: 0 0 0 4px var(--accent-soft); }
+.btn.primary { background: var(--fg); color: var(--bg); border-color: var(--fg); box-shadow: 3px 3px 0 var(--accent); }
+.btn.primary:hover:not(:disabled) { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(--accent); }
 .btn.ghost { background: transparent; }
 .btn.danger { background: transparent; color: var(--accent-hi); border-color: var(--accent); }
 .btn.danger:hover:not(:disabled) { background: var(--accent-soft); }
@@ -442,7 +411,7 @@ dialog.sheet {
 dialog.sheet[open] { display: grid; animation: dialog-in 0.35s var(--ease); }
 dialog.sheet.narrow { width: min(440px, calc(100vw - 2rem)); }
 dialog.sheet.narrow form { display: grid; gap: 0.75rem; }
-dialog::backdrop { background: rgba(0, 0, 0, 0.78); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+dialog::backdrop { background: rgba(22, 18, 15, 0.45); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
 @keyframes dialog-in { from { opacity: 0; transform: translateY(16px) scale(0.98); } }
 .sheet-foot { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; border-top: 1px solid var(--line); padding-top: 1rem; }
 
@@ -672,20 +641,19 @@ dialog.sheet.auth { width: min(420px, calc(100vw - 2rem)); gap: 1.1rem; padding:
 
 /* Big serif moments inside the app */
 .auth-head h2, .result-head h2, .sheet-head h2, .verdict h2, .gate h2, .empty h3 { font-family: var(--serif); font-weight: 400; font-size: 1.7rem; letter-spacing: -0.015em; }
-.btn.primary, .btn.lg { font-family: var(--mono); font-weight: 500; }
-.btn.primary { box-shadow: 0 14px 32px -16px rgba(212, 42, 51, 0.8); }
+.btn.primary, .btn.lg { font-family: var(--font); font-stretch: 125%; font-weight: 600; letter-spacing: 0.14em; }
 
-/* The seal moment: a vault dial spins through its combination and locks. */
-.seal-dial { position: relative; width: 58px; height: 58px; flex: none; }
+
+/* The seal moment: a red guilloché seal stamps in and turns once. */
+.seal-dial { position: relative; width: 64px; height: 64px; flex: none; }
 .seal-dial span { position: absolute; border-radius: 50%; }
-.seal-dial .ring {
-  inset: 0;
-  background: repeating-conic-gradient(from 0deg, rgba(239, 236, 230, 0.55) 0 1.4deg, transparent 1.4deg 12deg), radial-gradient(circle, #0b0b0b 58%, #1c1c1c 59%, #0a0a0a 72%);
-  -webkit-mask: radial-gradient(farthest-side, transparent 64%, #000 65%); mask: radial-gradient(farthest-side, transparent 64%, #000 65%);
-  box-shadow: 0 0 0 1px var(--line-strong);
-  animation: seal-spin 1.6s cubic-bezier(0.5, 0, 0.2, 1) both;
-}
-.seal-dial .core { inset: 30%; background: radial-gradient(circle at 45% 40%, #ff6a6f, var(--accent) 45%, #7d0f15); box-shadow: 0 0 0 3px var(--bg), 0 0 0 4px var(--line-strong); animation: seal-glow 1.6s ease-out both; }
-.seal-dial .idx { left: 50%; top: -5px; width: 0; height: 0; border-radius: 0; transform: translateX(-50%); border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 8px solid var(--accent); }
-@keyframes seal-spin { 0% { transform: rotate(0); } 35% { transform: rotate(250deg); } 65% { transform: rotate(110deg); } 100% { transform: rotate(200deg); } }
-@keyframes seal-glow { 0%, 80% { box-shadow: 0 0 0 3px var(--bg), 0 0 0 4px var(--line-strong); filter: brightness(0.7); } 100% { box-shadow: 0 0 0 3px var(--bg), 0 0 0 4px var(--line-strong), 0 0 26px rgba(212, 42, 51, 0.85); filter: brightness(1.15); } }
+.seal-dial .ring { inset: 0; background: url("./art/rosette-red.svg") center / contain no-repeat; box-shadow: 0 0 0 2px var(--surface-solid), 0 0 0 3.5px var(--accent); animation: seal-stamp 1.4s cubic-bezier(0.3, 1.4, 0.4, 1) both; }
+.seal-dial .core, .seal-dial .idx { display: none; }
+@keyframes seal-stamp { 0% { transform: scale(1.8) rotate(-90deg); opacity: 0; } 45% { transform: scale(0.94) rotate(-8deg); opacity: 1; } 100% { transform: scale(1) rotate(0); } }
+
+/* Cards read as certificates: a double rule inset. */
+.card.step, .summary, .card.result { box-shadow: var(--shadow), inset 0 0 0 4px var(--surface), inset 0 0 0 5px var(--line); }
+h2, .card h2 { font-family: var(--serif); font-weight: 500; font-size: 1.3rem; letter-spacing: -0.005em; }
+.step-n { font-family: var(--serif); font-style: italic; font-size: 1rem; color: var(--accent); border-color: var(--line-strong); }
+.tabs button[aria-selected="true"] { background: var(--surface-solid); }
+.net-chip, .btn, .seg, .tabs { border-radius: var(--radius); }
