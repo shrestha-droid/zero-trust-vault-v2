@@ -54,8 +54,8 @@ export async function verifyCheckinToken(token: string, secret: string, nowMs: n
 // ---------- Emails ----------
 export const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 const fmt = (ms: number) => new Date(ms).toUTCString().slice(5, 16);
-const wrap = (inner: string) => `<div style="font-family:-apple-system,Segoe UI,sans-serif;max-width:560px;margin:auto;line-height:1.55;color:#111">${inner}<hr style="border:0;border-top:1px solid #ddd;margin:24px 0"><p style="color:#777;font-size:12px">Zero-Trust Vault · client-side, zero-knowledge encryption</p></div>`;
-const button = (href: string, label: string) => `<p><a href="${esc(href)}" style="display:inline-block;background:#059669;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600">${esc(label)}</a></p>`;
+const wrap = (inner: string) => `<div style="font-family:-apple-system,Segoe UI,sans-serif;max-width:560px;margin:auto;line-height:1.6;color:#1b1514">${inner}<hr style="border:0;border-top:1px solid #ddd;margin:24px 0"><p style="color:#777;font-size:12px">Zero-Trust Vault · client-side, zero-knowledge encryption</p></div>`;
+const button = (href: string, label: string) => `<p><a href="${esc(href)}" style="display:inline-block;background:#8f1d22;color:#fff7f2;padding:11px 20px;border-radius:6px;letter-spacing:.01em;text-decoration:none;font-weight:600">${esc(label)}</a></p>`;
 
 export function reminderEmail(p: LegacyPlan, ownerEmail: string, checkinUrl: string, now: number): Email {
   const when = fmt(releaseAt(p));
@@ -83,7 +83,7 @@ export function releaseEmail(p: LegacyPlan, t: Trustee, ownerEmail: string, link
   const html = wrap([
     `<h2>${esc(ownerEmail)} asked us to contact you</h2>`,
     `<p>Hello ${esc(t.name)}, ${esc(ownerEmail)} set up a Zero-Trust Vault <b>Legacy</b> plan and named you as a trustee. They asked us to contact you if they stopped checking in. Their last check-in was <b>${since}</b>.</p>`,
-    p.message ? `<p><b>Their message to you:</b></p><blockquote style="border-left:3px solid #059669;margin:0;padding:4px 14px;white-space:pre-wrap">${esc(p.message)}</blockquote>` : '',
+    p.message ? `<p><b>Their message to you:</b></p><blockquote style="border-left:3px solid #8f1d22;margin:0;padding:4px 14px;white-space:pre-wrap">${esc(p.message)}</blockquote>` : '',
     links.length ? `<p><b>Encrypted vault files.</b> The links expire in 30 days, so download them now:</p><ul>${links.map((l) => `<li><a href="${esc(l.url)}">${esc(l.id)}.vault</a></li>`).join('')}</ul>` : '',
     p.escrow_shard ? `<p><b>One recovery shard they left with us.</b> On its own it cannot open anything:</p><pre style="white-space:pre-wrap;word-break:break-all;background:#f4f4f5;padding:12px;border-radius:8px;font-size:12px">${esc(p.escrow_shard)}</pre>` : '',
     `<p>To open a vault, open the app, choose <b>Open</b>, load the .vault file, and add enough shards (from the people named in the message) or the passphrase.</p>`,
