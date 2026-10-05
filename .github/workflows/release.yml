@@ -18,7 +18,7 @@ jobs:
       - run: npm run check
       - name: Package offline build
         run: |
-          cp dist/app/index.html "zero-trust-vault-${GITHUB_REF_NAME}.html"
+          cp dist/app/zero-trust-vault.html "zero-trust-vault-${GITHUB_REF_NAME}.html"
           sha256sum "zero-trust-vault-${GITHUB_REF_NAME}.html" > SHA256SUMS.txt
           cat SHA256SUMS.txt
       - name: Publish release

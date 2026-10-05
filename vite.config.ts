@@ -60,6 +60,10 @@ function site(siteUrl: string): Plugin {
       // The landing page is rendered once per currency (dist/p/<cur>.html). vercel.json rewrites "/" to the
       // visitor's currency by country; there is deliberately no dist/index.html so that rewrite always wins.
       rmSync('dist/index.html', { force: true });
+      // The downloadable offline app: same file minus the install links (no manifest next to a downloaded file).
+      // Served with Content-Disposition from vercel.json so every browser saves it as zero-trust-vault.html.
+      writeFileSync('dist/app/zero-trust-vault.html', readFileSync('dist/app/index.html', 'utf8')
+        .replace(/\s*<link rel="(manifest|apple-touch-icon)"[^>]*>/g, ''));
       mkdirSync('dist/p', { recursive: true });
       const landing = readFileSync('site/index.html', 'utf8').replaceAll('%SITE_URL%', siteUrl);
       for (const [cur, page] of Object.entries(landingPages(landing))) writeFileSync(`dist/p/${cur.toLowerCase()}.html`, page);

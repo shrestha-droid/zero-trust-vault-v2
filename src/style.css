@@ -37,7 +37,65 @@
   --serif: "Bodoni Moda", "Didot", "Bodoni 72", Georgia, serif;
   --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --backdrop: url("./art/paper.svg"), radial-gradient(120rem 60rem at 50% -10%, #f7f3ea, transparent 60%), var(--bg);
   color-scheme: light;
+}
+
+/* Dark: the same certificate printed on black security paper with ivory ink. Follows the OS unless
+   the user picked a theme in Settings (html[data-theme]). */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #131110;
+    --bg-2: #1a1716;
+    --surface: #1c1917;
+    --surface-solid: #201c1a;
+    --surface-2: #27221f;
+    --line: rgba(243, 238, 227, 0.11);
+    --line-strong: rgba(243, 238, 227, 0.24);
+    --fg: #efe8db;
+    --fg-2: #b6ad9f;
+    --fg-3: #8c8378;
+    --accent: #e0353e;
+    --accent-2: #a51d24;
+    --accent-hi: #ff5d64;
+    --accent-ink: #fff;
+    --accent-soft: rgba(224, 53, 62, 0.14);
+    --ok: #efe8db;
+    --ok-soft: rgba(243, 238, 227, 0.07);
+    --warn: #e6a94e;
+    --warn-soft: rgba(230, 169, 78, 0.12);
+    --danger: #ff7a4d;
+    --danger-soft: rgba(255, 122, 77, 0.12);
+    --shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 20px 40px -24px rgba(0, 0, 0, 0.9);
+    --backdrop: radial-gradient(90rem 50rem at 50% -20%, rgba(224, 53, 62, 0.07), transparent 60%), var(--bg);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #131110;
+  --bg-2: #1a1716;
+  --surface: #1c1917;
+  --surface-solid: #201c1a;
+  --surface-2: #27221f;
+  --line: rgba(243, 238, 227, 0.11);
+  --line-strong: rgba(243, 238, 227, 0.24);
+  --fg: #efe8db;
+  --fg-2: #b6ad9f;
+  --fg-3: #8c8378;
+  --accent: #e0353e;
+  --accent-2: #a51d24;
+  --accent-hi: #ff5d64;
+  --accent-ink: #fff;
+  --accent-soft: rgba(224, 53, 62, 0.14);
+  --ok: #efe8db;
+  --ok-soft: rgba(243, 238, 227, 0.07);
+  --warn: #e6a94e;
+  --warn-soft: rgba(230, 169, 78, 0.12);
+  --danger: #ff7a4d;
+  --danger-soft: rgba(255, 122, 77, 0.12);
+  --shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 20px 40px -24px rgba(0, 0, 0, 0.9);
+  --backdrop: radial-gradient(90rem 50rem at 50% -20%, rgba(224, 53, 62, 0.07), transparent 60%), var(--bg);
+  color-scheme: dark;
 }
 
 /* ============ Base ============ */
@@ -77,7 +135,7 @@ a { color: var(--accent-hi); }
 i[data-icon] { display: inline-flex; }
 
 /* Ambient background: safety paper. */
-.backdrop { position: fixed; inset: 0; z-index: -1; pointer-events: none; background: url("./art/paper.svg"), radial-gradient(120rem 60rem at 50% -10%, #f7f3ea, transparent 60%), var(--bg); }
+.backdrop { position: fixed; inset: 0; z-index: -1; pointer-events: none; background: var(--backdrop); }
 /* ============ Top bar ============ */
 .topbar {
   position: sticky; top: 0; z-index: 20;

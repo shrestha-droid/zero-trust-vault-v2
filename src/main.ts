@@ -24,6 +24,18 @@ type TT = { createPolicy: (n: string, p: { createScriptURL: (u: string) => strin
 // Air-gap must engage before anything can reach the network.
 if (airGap.preferred) airGap.lock();
 
+// Theme: "system" follows the OS; an explicit choice is stored per device. Applied before first render.
+const THEME_KEY = 'ztv.theme';
+type Theme = 'system' | 'light' | 'dark';
+function applyTheme(t: Theme) {
+  if (t === 'system') delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = t;
+  const dark = t === 'dark' || (t === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+  document.querySelectorAll<HTMLMetaElement>('meta[name=theme-color]').forEach((m) => { m.content = dark ? '#131110' : '#f3eee3'; });
+}
+const storedTheme = (() => { try { return (localStorage.getItem(THEME_KEY) as Theme | null) ?? 'system'; } catch { return 'system'; } })();
+applyTheme(storedTheme);
+
 // If this load is the Google Drive consent popup returning, hand the token to the opener tab and close.
 const oauthPopup = drive.completeRedirect();
 const returningFromSignIn = /[?&]code=/.test(location.search);
@@ -89,6 +101,7 @@ const ICONS: Record<string, string> = {
   camera: 'M4 8h3l2-3h6l2 3h3v11H4zM12 17a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z',
   refresh: 'M20 11a8 8 0 0 0-14.5-4.5L4 8M4 4v4h4M4 13a8 8 0 0 0 14.5 4.5L20 16M20 20v-4h-4',
   clock: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2',
+  contrast: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 3v18',
   hourglass: 'M6 3h12M6 21h12M7 3v3a5 5 0 0 0 10 0V3M7 21v-3a5 5 0 0 1 10 0v3',
   star: 'M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.8-5.2 2.8 1-5.8-4.3-4.1 5.9-.9z',
   plus: 'M12 5v14M5 12h14',
@@ -1212,6 +1225,13 @@ dropzone($('verify-drop'), (files) => appendText(verifyPaste, files, () => void 
 $('verify-clear').addEventListener('click', () => { verifyPaste.value = ''; void runVerify(); });
 
 // ================= SETTINGS =================
+const themeSeg = seg('theme-seg', (v) => {
+  try { if (v === 'system') localStorage.removeItem(THEME_KEY); else localStorage.setItem(THEME_KEY, v); } catch { /* storage blocked */ }
+  applyTheme(v as Theme);
+});
+themeSeg.set(storedTheme);
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => applyTheme(themeSeg.get() as Theme));
+
 const airToggle = $<HTMLInputElement>('airgap-toggle');
 
 async function refreshAirgapStatus() {
