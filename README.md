@@ -15,7 +15,8 @@ The whole app builds into **one self-contained HTML file** with no CDN, no exter
 - **Forged-shard detection:** given more than *K* shards, the app finds a consistent *K*-subset, recovers the key, and names the shards that don't fit, even if a holder forged one with a valid checksum.
 - **Two-factor vaults:** KEK = HKDF(Shamir secret ‖ Argon2id(passphrase)). Stolen shards alone are useless, and so is a leaked passphrase.
 - **Passkeys (WebAuthn PRF):** the authenticator derives a secret in hardware, with a per-vault salt. Synced passkeys work on every device they sync to (same domain).
-- **Argon2id** (64 MiB, 3 passes), with KDF parameters bounds-checked to stop memory-exhaustion headers.
+- **Argon2id** (256 MiB, 2 passes; 64 MiB fallback), with KDF parameters bounds-checked to stop memory-exhaustion headers.
+- **Key-committed** (v3): every unlocking key must match a commitment in the header, closing AES-GCM's multi-key ("invisible salamanders") gap.
 - **Padmé padding** hides exact payload sizes.
 - **Post-quantum by construction:** the format uses no public-key cryptography. AES-256, HMAC/HKDF-SHA256 and Shamir (information-theoretic) leave a quantum adversary nothing better than Grover-speed brute force.
 
@@ -74,17 +75,19 @@ Passkey slots are bound to the domain they were created on (the WebAuthn RP ID).
 
 Entitlements are written only by the Stripe webhook (service role) and enforced in Postgres via RLS, not in the browser. Opening a vault never requires a plan. An armed Legacy plan is delivered even if billing lapses; Pro is only needed to create or edit one.
 
-## File format (v2)
+## File format (v3; v2 still readable)
 
 A `.vault` file is JSON:
 
 ```jsonc
 {
   "h": {                                  // header: authenticated as AES-GCM AAD (JSON.stringify(h))
-    "v": 2, "alg": "AES-256-GCM",
+    "v": 3, "alg": "AES-256-GCM",
     "id": "16 hex chars", "created": "ISO-8601", "label": "plaintext, ≤80 chars",
-    "shamir": { "k": 3, "n": 5, "fp": "SHA-256('ztv2-fp' ‖ S)[0..8] hex" } | null,
-    "kdf": { "name": "argon2id", "m": 65536, "t": 3, "p": 1, "salt": "b64" } | null,
+    "shamir": { "k": 3, "n": 5, "fp": "SHA-256('ztv2-fp' ‖ S)[0..8] hex",
+                "commits": ["SHA-256('ztv3-share:' id ':' i ':' ‖ share_i)[0..16] hex", "…one per shard"] } | null,
+    "kdf": { "name": "argon2id", "m": 262144, "t": 2, "p": 1, "salt": "b64" } | null,   // 64 MiB/3 if 256 MiB can't be allocated
+    "kc": "b64: HMAC-SHA256(dataKey, 'ztv3-commit:' id)",                             // key commitment
     "slots": [
       { "type": "shards" | "pass" | "shards+pass" | "passkey",
         "iv": "b64", "key": "b64: AES-GCM(KEK, dataKey, AAD = 'ztv2-slot:' id ':' type)",
@@ -107,9 +110,17 @@ The KEK for each slot is `HKDF-SHA256(ikm, salt = 'ztv2:' id, info = 'ztv2/' typ
 
 `meta` is `{ kind: "text" | "file", name, type, size }`, which keeps file names and types encrypted.
 
+**What v3 adds over v2**
+
+- **Key commitment (`kc`).** AES-GCM is not key-committing: a malicious sealer could build slots that unwrap to *different* keys, with a ciphertext valid under both, and show different trustees different contents ("invisible salamanders"). Every key a slot unwraps must match `kc` before decryption.
+- **Shard commitments (`commits`).** A forged shard with a valid checksum is named even when exactly *k* shards are presented, and each holder can check their own shard against the vault. Hash-based, so unlike Feldman/Pedersen verifiable secret sharing it stays post-quantum.
+- **Argon2id at 256 MiB** by default, falling back to 64 MiB where the device can't allocate it. Parameters are in the header, so every vault opens with exactly what it was sealed with (bounded to ≤1 GiB against hostile headers).
+
+v2 vaults (no `kc`, no `commits`, `"v": 2`) remain readable; `src/__fixtures__/v2-vault.json` is a real v2 vault that the test suite opens on every run.
+
 A **shard** is `ztv2.<id>.<index>.<k>.<n>.<fp>.<share b64url>.<checksum>`, where the checksum is the first 4 bytes of SHA-256 over everything before it.
 
-Any change to bytes on disk requires bumping `v`. Readers reject versions they don't know. v1 records (from `legacy-v1.html`) are not readable by v2. Open them with the legacy file and re-seal them.
+Any change to bytes on disk requires bumping `v`. Readers reject versions they don't know. v1 records (from `legacy-v1.html`) are not readable by v2/v3. Open them with the legacy file and re-seal them.
 
 ## Project layout
 

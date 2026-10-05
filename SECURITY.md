@@ -21,12 +21,14 @@ Please use **GitHub → Security → Report a vulnerability** (private advisory)
 | Moving or reinterpreting key slots | Each slot's AAD binds the vault id and slot type; HKDF info separates KEK domains. |
 | Key exposure to page scripts and extensions' DOM access | Data keys and Shamir secrets exist only inside a dedicated Web Worker. |
 | Future quantum computers | No public-key cryptography in the format. Symmetric primitives at 256 bits, and Shamir is information-theoretic. |
-| Offline brute force of a passphrase | Argon2id at 64 MiB / 3 passes. Strength still depends on the passphrase; use the generator (130 bits). |
+| Offline brute force of a passphrase | Argon2id at 256 MiB / 2 passes (64 MiB fallback on low-memory devices). Strength still depends on the passphrase; use the generator (130 bits). |
+| A malicious sealer showing different trustees different contents | v3 key commitment: every key a slot unwraps must match `kc` (closes AES-GCM's multi-key "invisible salamanders" gap). |
+| A forged shard presented with exactly K shards | v3 per-shard hash commitments name it before reconstruction; holders can check their own shard against the vault. |
 | Crafted vault requesting huge KDF memory (DoS) | KDF parameters are bounds-checked before use. |
 | XSS / script injection | Hash-pinned CSP with no `unsafe-inline` or `eval`, plus Trusted Types. The UI never uses `innerHTML`. |
 | Supply-chain injection via CDN | No CDN. All dependencies are bundled at build time from a lockfile. |
 | Exact-size fingerprinting | Padmé padding. |
-| This website disappearing | A single-file offline build (in the app and on GitHub Releases) opens every v2 vault. |
+| This website disappearing | A single-file offline build (in the app and on GitHub Releases) opens every v2 and v3 vault. |
 
 ### Does not protect against
 
@@ -35,7 +37,7 @@ Please use **GitHub → Security → Report a vulnerability** (private advisory)
 - **Losing more than N−K shards, or forgetting the passphrase.** By design there is no recovery and no backdoor.
 - **Memory forensics.** JavaScript can't guarantee secrets are wiped from RAM. Decrypted output must reach the page to be shown; it auto-clears after 5 minutes.
 - **Losing the domain for passkey-only vaults.** WebAuthn binds passkeys to the site's domain. Never make a passkey the only slot.
-- **Fewer than K+1 shards when one is forged.** With exactly K shards, a forgery is detected but can't be pinpointed.
+- **Forged shards in v2 vaults.** v2 has no shard commitments: with exactly K shards a forgery is detected but can't be pinpointed (v3 vaults name it). Re-key old vaults to upgrade them.
 - **Metadata.** The vault id, creation time, label, policy and approximate size are visible to whoever holds the file.
 
 ## Status

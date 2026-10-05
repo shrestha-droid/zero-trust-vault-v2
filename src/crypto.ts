@@ -1,4 +1,4 @@
-// Vault format v2. Pure: runs in the browser worker, the main thread fallback, and Node (tests).
+// Vault format v3 (reads v2). Pure: runs in the browser worker, the main thread fallback, and Node (tests).
 // Spec: README.md#file-format. Changing anything that touches bytes = bump VERSION.
 //
 // Design: a random data key encrypts the payload. Each way of unlocking is a "slot" that wraps
@@ -8,26 +8,39 @@
 //   shards+pass  KEK = HKDF(S ‖ Argon2id(pass))   two-factor: neither alone suffices
 //   passkey      KEK = HKDF(WebAuthn PRF output)  hardware-bound (Touch ID, YubiKey…)
 // No public-key cryptography anywhere in the format, so nothing here falls to Shor's algorithm.
+//
+// v3 adds, on top of v2:
+//   kc       key commitment HMAC(dataKey, id). AES-GCM is not key-committing: a malicious sealer could craft
+//            slots that unwrap to different keys and a ciphertext valid under both ("invisible salamanders"),
+//            showing different trustees different contents. Every unwrapped key must now match kc.
+//   commits  per-shard hash commitments, so a forged shard (valid checksum, tampered share) is named even
+//            with exactly k shards, and a holder can check their own shard against the vault. Hash-based,
+//            so it stays post-quantum (Feldman/Pedersen VSS would not).
+//   kdf      Argon2id at 256 MiB when the device can allocate it (64 MiB fallback). Params live in the
+//            header, so any vault opens with exactly what it was sealed with.
 import { argon2id } from 'hash-wasm';
 import { combine, split } from 'shamir-secret-sharing';
 
-export const VERSION = 2;
+export const VERSION = 3;
+export const READS = [2, 3];
 // ponytail: whole payload is held in memory; a chunked/streaming format is the upgrade if >100 MB is ever needed
 export const MAX_BYTES = 100 * 1024 * 1024;
 export const MAX_SHARDS = 16;
-export const DEFAULT_KDF = { m: 65536, t: 3, p: 1 }; // 64 MiB, 3 passes
+export const DEFAULT_KDF = { m: 65536, t: 3, p: 1 }; // 64 MiB, 3 passes: fallback for devices that can't allocate more
+export const STRONG_KDF = { m: 262144, t: 2, p: 1 }; // 256 MiB, 2 passes: ~4× the memory an attacker needs per guess
 
 type Bytes = Uint8Array<ArrayBuffer>;
 export type SlotType = 'shards' | 'pass' | 'shards+pass' | 'passkey';
 export interface Kdf { name: 'argon2id'; m: number; t: number; p: number; salt: string }
 export interface Slot { type: SlotType; iv: string; key: string; cred?: string; salt?: string; rp?: string }
 export interface Header {
-  v: 2;
+  v: 2 | 3;
   alg: 'AES-256-GCM';
   id: string;
   created: string;
   label: string;
-  shamir: { k: number; n: number; fp: string } | null;
+  shamir: { k: number; n: number; fp: string; commits?: string[] } | null;
+  kc?: string;
   kdf: Kdf | null;
   slots: Slot[];
 }
@@ -89,6 +102,27 @@ const checksum = async (body: string) => hex(await sha256(enc.encode(body))).sli
 const aesKey = (raw: Bytes) => subtle.importKey('raw', raw, 'AES-GCM', false, ['encrypt', 'decrypt']);
 const aad = (h: Header) => enc.encode(JSON.stringify(h));
 const slotAad = (id: string, type: SlotType) => enc.encode(`ztv2-slot:${id}:${type}`);
+
+/** v3 key commitment: binds the vault to exactly one data key. */
+async function keyCommit(dataKey: Bytes, id: string): Promise<string> {
+  const k = await subtle.importKey('raw', dataKey, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  return toB64(new Uint8Array(await subtle.sign('HMAC', k, enc.encode(`ztv3-commit:${id}`))));
+}
+/** v3 per-shard commitment (128-bit): reveals nothing usable about the share, which is 32+ random bytes. */
+const shareCommit = async (id: string, i: number, share: Uint8Array) => hex(await sha256(enc.encode(`ztv3-share:${id}:${i}:`), share)).slice(0, 32);
+
+/** Indices of shards that don't match this vault's commitments (v3). Empty for v2 vaults (no commitments). */
+export async function forgedShards(h: Pick<Header, 'id' | 'shamir'>, shards: Shard[]): Promise<number[]> {
+  const commits = h.shamir?.commits;
+  if (!commits) return [];
+  const bad: number[] = [];
+  for (const s of shards) {
+    if (s.id !== h.id) continue;
+    const ok = Number.isInteger(s.i) && s.i >= 1 && s.i <= commits.length && commits[s.i - 1] === await shareCommit(h.id, s.i, s.share);
+    if (!ok) bad.push(s.i);
+  }
+  return [...new Set(bad)];
+}
 
 async function hkdf(ikm: Bytes, id: string, info: string): Promise<CryptoKey> {
   const base = await subtle.importKey('raw', ikm, 'HKDF', false, ['deriveKey']);
@@ -239,14 +273,22 @@ export async function seal(plain: Plain, policy: Policy): Promise<{ file: VaultF
         throw new VaultError(`Threshold must be 2…shard count, with at most ${MAX_SHARDS} shards.`);
       }
       f.secret = rand(32);
-      shamir = { k, n, fp: await fingerprint(f.secret) };
       const parts = await split(f.secret, n, k);
+      const commits = await Promise.all(parts.map((s, i) => shareCommit(id, i + 1, s)));
+      shamir = { k, n, fp: await fingerprint(f.secret), commits };
       shards = await Promise.all(parts.map((s, i) => encodeShard({ id, i: i + 1, k, n, fp: shamir!.fp, share: new Uint8Array(s) })));
     }
     let kdf: Kdf | null = null;
     if (policy.passphrase) {
-      kdf = { name: 'argon2id', ...(policy.kdf ?? DEFAULT_KDF), salt: toB64(rand(16)) };
-      f.passRaw = await argonRaw(policy.passphrase, kdf);
+      const salt = toB64(rand(16));
+      kdf = { name: 'argon2id', ...(policy.kdf ?? STRONG_KDF), salt };
+      try {
+        f.passRaw = await argonRaw(policy.passphrase, kdf);
+      } catch (e) {
+        if (policy.kdf || e instanceof VaultError) throw e;
+        kdf = { name: 'argon2id', ...DEFAULT_KDF, salt }; // couldn't allocate 256 MiB here (older phones)
+        f.passRaw = await argonRaw(policy.passphrase, kdf);
+      }
     }
     const slots: Slot[] = [];
     if (policy.requireBoth) slots.push(await wrap('shards+pass', id, f, dataKey));
@@ -259,7 +301,7 @@ export async function seal(plain: Plain, policy: Policy): Promise<{ file: VaultF
       if (prf.length < 32) throw new VaultError('Passkey returned too little key material.');
       slots.push({ ...(await wrap('passkey', id, { prf: new Uint8Array(prf) }, dataKey)), cred, salt, rp });
     }
-    const h: Header = { v: 2, alg: 'AES-256-GCM', id, created: new Date().toISOString(), label: (policy.label ?? '').trim().slice(0, 80), shamir, kdf, slots };
+    const h: Header = { v: 3, alg: 'AES-256-GCM', id, created: new Date().toISOString(), label: (policy.label ?? '').trim().slice(0, 80), shamir, kdf, slots, kc: await keyCommit(dataKey, id) };
     const iv = rand(12);
     const meta = { ...plain.meta, size: plain.data.length };
     const ct = await subtle.encrypt({ name: 'AES-GCM', iv, additionalData: aad(h) }, await aesKey(dataKey), frame({ meta, data: plain.data }));
@@ -281,7 +323,17 @@ export async function open(file: VaultFile, u: Unlock): Promise<Opened> {
       if (h.shamir) {
         const s = u.shards[0];
         if (s.id !== h.id || s.fp !== h.shamir.fp) throw new VaultError(`These shards belong to vault ${s.id}, not ${h.id}.`);
-        ({ secret: f.secret, bad } = await recoverSecret(u.shards));
+        // v3: drop shards that don't match the vault's commitments before reconstructing.
+        const forged = await forgedShards(h, u.shards);
+        const genuine = u.shards.filter((x) => !forged.includes(x.i));
+        const have = new Set(genuine.map((x) => x.i)).size;
+        if (forged.length && have < h.shamir.k) {
+          const many = forged.length > 1;
+          throw new VaultError(`Shard${many ? 's' : ''} ${forged.map((i) => `#${i}`).join(', ')} ${many ? "don't" : "doesn't"} match this vault (forged or damaged). Bring ${h.shamir.k - have} more genuine shard${h.shamir.k - have > 1 ? 's' : ''}.`);
+        }
+        let more: number[];
+        ({ secret: f.secret, bad: more } = await recoverSecret(genuine));
+        bad = [...new Set([...forged, ...more])].sort((a, b) => a - b);
       } else if (given === 1) throw new VaultError('This vault has no shards.');
     }
     if (u.passphrase) {
@@ -303,6 +355,10 @@ export async function open(file: VaultFile, u: Unlock): Promise<Opened> {
       if (f.passRaw) throw new VaultError('Wrong passphrase.');
       if (f.prf) throw new VaultError('That passkey does not match this vault.');
       throw new VaultError('These keys cannot open this vault.');
+    }
+    if (h.kc && (await keyCommit(dataKey, h.id)) !== h.kc) {
+      dataKey.fill(0);
+      throw new VaultError("This vault's keys don't agree with each other. It may have been crafted to show different contents to different people. Don't trust it.");
     }
     try {
       const pt = await subtle.decrypt({ name: 'AES-GCM', iv: fromB64(file.iv), additionalData: aad(h) }, await aesKey(dataKey), fromB64(file.ct));
@@ -329,16 +385,22 @@ export function parseVaultFile(text: string): VaultFile {
     && (s.type !== 'passkey' || (str(s.cred) && str(s.salt) && str(s.rp)))
     && (!s.type.includes('shards') || h.shamir)
     && (!s.type.includes('pass') || s.type === 'passkey' || h.kdf);
-  const ok = h && h.v === VERSION && h.alg === 'AES-256-GCM' && ID_RE.test(h.id) && str(h.created) && str(h.label)
+  const b64of = (x: unknown, len: number) => str(x) && (x as string).length === len;
+  const v3ok = h?.v !== 3 || (b64of(h.kc, 44) && (h.shamir === null
+    || (Array.isArray(h.shamir?.commits) && h.shamir.commits.length === h.shamir.n && h.shamir.commits.every((c: unknown) => str(c) && /^[0-9a-f]{32}$/.test(c as string)))));
+  const ok = h && READS.includes(h.v) && v3ok && h.alg === 'AES-256-GCM' && ID_RE.test(h.id) && str(h.created) && str(h.label)
     && str(f.iv) && str(f.ct)
     && (h.shamir === null || (Number.isInteger(h.shamir?.k) && Number.isInteger(h.shamir?.n) && str(h.shamir?.fp)))
     && (h.kdf === null || (h.kdf?.name === 'argon2id' && str(h.kdf?.salt)))
     && Array.isArray(h.slots) && h.slots.length > 0 && h.slots.every(slotOk);
-  if (!ok) throw new VaultError(h?.v > VERSION ? 'This vault was made by a newer version of the app.' : 'Not a valid v2 vault file.');
+  if (!ok) throw new VaultError(h?.v > VERSION ? 'This vault was made by a newer version of the app.' : 'Not a valid vault file.');
   return f as VaultFile;
 }
 
 export const isId = (s: string) => ID_RE.test(s);
+
+/** Internals exposed only so tests can play a malicious sealer. Not part of the API. */
+export const __testing = { wrap, keyCommit, argonRaw, aad, aesKey };
 
 /** Human summary of what opens a vault, e.g. "3 of 5 shards + passphrase · or passkey". */
 export function describeSlots(h: Pick<Header, 'shamir' | 'slots'>): string {

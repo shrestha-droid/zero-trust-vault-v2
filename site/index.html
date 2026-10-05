@@ -153,7 +153,7 @@
       <dl class="datasheet reveal">
         <div><dt>Encryption</dt><dd>AES-256-GCM, authenticated. The header is bound to the ciphertext, so altering any byte fails.</dd></div>
         <div><dt>Key splitting</dt><dd>Shamir secret sharing over GF(2⁸), via an independently audited library. Forged coupons are identified.</dd></div>
-        <div><dt>Passphrases</dt><dd>Argon2id, 64 MiB memory-hard, three passes.</dd></div>
+        <div><dt>Passphrases</dt><dd>Argon2id, 256 MiB memory-hard (64 MiB on devices that can't spare it).</dd></div>
         <div><dt>Hardware keys</dt><dd>WebAuthn passkeys with the PRF extension: Touch ID, Windows Hello, YubiKey.</dd></div>
         <div><dt>Isolation</dt><dd>Every key lives in a dedicated Web Worker, out of reach of the page and its extensions.</dd></div>
         <div><dt>Hardening</dt><dd>Strict Content Security Policy and Trusted Types. No third-party scripts, no CDNs, no trackers.</dd></div>

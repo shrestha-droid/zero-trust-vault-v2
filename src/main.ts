@@ -2,7 +2,7 @@ import jsQR from 'jsqr';
 import qrcode from 'qrcode-generator';
 import * as direct from './crypto';
 import {
-  describeSlots, fromB64, fromB64url, MAX_BYTES, parseShard, parseVaultFile, rand, shardTokens, toB64, toB64url, VaultError,
+  describeSlots, forgedShards, fromB64, fromB64url, MAX_BYTES, parseShard, parseVaultFile, rand, shardTokens, toB64, toB64url, VaultError,
   type Header, type Plain, type Policy, type Shard, type SlotType, type Unlock, type VaultFile,
 } from './crypto';
 import { airGap, billing, cloud, cloudConfigured, drive, legacy, local, type LegacyInput, type LegacyPlan, type Plan } from './storage';
@@ -739,7 +739,8 @@ function printKit(file: VaultFile, shards: string[]) {
 // ================= OPEN =================
 let target: VaultFile | null = null;
 let targetWhere: Where | undefined;
-let validShards: Shard[] = [];
+let validShards: Shard[] = []; // genuine shards: count toward quorum
+let presentedShards: Shard[] = []; // everything the user supplied for this vault, passed to open() so forgeries get reported
 let opened: (Plain & { via: SlotType; bad: number[] }) | null = null;
 const shardPaste = $<HTMLTextAreaElement>('shard-paste');
 const openPass = $<HTMLInputElement>('open-pass');
@@ -866,6 +867,17 @@ async function renderOpenShards() {
     chips.push(h('li', { class: 'chip', 'data-i': String(p.shard.i) }, icon('check'), `#${p.shard.i}/${p.shard.n}`));
   }
   validShards = [...good.values()];
+  presentedShards = validShards;
+  // v3 vaults carry a commitment per shard: name a forged one immediately, and don't count it toward quorum.
+  if (target?.h.shamir?.commits && validShards.length) {
+    const forged = await forgedShards(target.h, validShards);
+    if (gen !== openGen) return;
+    for (const i of forged) {
+      const at = chips.findIndex((c) => c.dataset.i === String(i));
+      if (at >= 0) chips[at] = h('li', { class: 'chip bad', 'data-i': String(i), title: "This shard doesn't match the vault: forged or damaged" }, icon('alert'), `#${i} · forged`);
+    }
+    validShards = validShards.filter((x) => !forged.includes(x.i));
+  }
   $('shard-chips').replaceChildren(...chips);
 
   const k = target?.h.shamir?.k ?? validShards[0]?.k ?? 0;
@@ -907,7 +919,7 @@ async function doOpen(unlock: Unlock) {
 $('open-btn').addEventListener('click', (e) => busy(e.currentTarget as HTMLButtonElement, 'Opening…', async () => {
   const t = slotTypes();
   const unlock: Unlock = {};
-  if (quorum()) unlock.shards = validShards;
+  if (quorum()) unlock.shards = presentedShards;
   if (openPass.value && (t.includes('pass') || t.includes('shards+pass'))) unlock.passphrase = openPass.value;
   await doOpen(unlock);
 }).then(updateOpenBtn));
@@ -1450,7 +1462,7 @@ function renderEngine() {
     ['Network', airGap.active ? 'Blocked (air-gap CSP)' : cloudConfigured ? 'Cloud backend only' : "connect-src 'none'", true],
     ['Passkey PRF', passkey.supported ? 'Available' : 'Unavailable here', passkey.supported],
     ['QR decoding', BD ? 'Native BarcodeDetector' : 'jsQR (bundled)', true],
-    ['Format', 'v2 · AES-256-GCM · HKDF-SHA256 · Argon2id · Shamir GF(2⁸)', true],
+    ['Format', 'v3 · AES-256-GCM · key-committed · HKDF-SHA256 · Argon2id · Shamir GF(2⁸) + share commitments', true],
     ['Build', `v${__APP_VERSION__}`, true],
   ];
   $('engine-info').replaceChildren(...rows.flatMap(([k, v, ok]) => [h('dt', {}, k), h('dd', { class: ok ? 'ok' : 'no' }, v)]));

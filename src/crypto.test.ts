@@ -1,6 +1,7 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
-  describeSlots, encodeShard, MAX_BYTES, open, padme, parseShard, parseVaultFile, rand, seal, shardTokens, toB64, verifyShards,
+  __testing, describeSlots, encodeShard, forgedShards, STRONG_KDF, MAX_BYTES, open, padme, parseShard, parseVaultFile, rand, seal, shardTokens, toB64, verifyShards,
   type Plain,
 } from './crypto';
 
@@ -137,7 +138,8 @@ describe('shards', () => {
     await expect(verifyShards(set)).resolves.toEqual({ bad: [2] });
     const out = await open(file, { shards: set });
     expect([dec.decode(out.data), out.bad]).toEqual(['cheat', [2]]);
-    await expect(open(file, { shards: [parsed[0], evil, parsed[2]] })).rejects.toThrow(/damaged, forged/);
+    // v3 commitments name the forgery even with exactly k shards:
+    await expect(open(file, { shards: [parsed[0], evil, parsed[2]] })).rejects.toThrow(/#2 doesn't match this vault .*Bring 1 more/);
   });
 
   it('extracts shard tokens from messy pasted text', async () => {
@@ -150,7 +152,7 @@ describe('parseVaultFile', () => {
   it('rejects v1 records, junk, missing slots, and dangerous KDF params', async () => {
     expect(() => parseVaultFile('{"iv":[1],"ciphertext":[2]}')).toThrow(/v1 record/);
     expect(() => parseVaultFile('nope')).toThrow(/invalid JSON/);
-    expect(() => parseVaultFile('{"h":{"v":3}}')).toThrow(/newer version/);
+    expect(() => parseVaultFile('{"h":{"v":4}}')).toThrow(/newer version/);
     const { file } = await seal(text('x'), { passphrase: 'pw', kdf: FAST });
     const noSlots = structuredClone(file); noSlots.h.slots = [];
     expect(() => roundTrip(noSlots)).toThrow(/Not a valid/);
@@ -166,4 +168,62 @@ it('padme pads to coarse buckets and never shrinks', () => {
     expect(padme(n)).toBeGreaterThanOrEqual(n);
     expect(padme(n)).toBeLessThanOrEqual(Math.max(n * 1.12, n + 1));
   }
+});
+
+describe('format v3', () => {
+  const fixture = JSON.parse(readFileSync(new URL('./__fixtures__/v2-vault.json', import.meta.url), 'utf8'));
+
+  it('still opens a real v2 vault (made by the v2 code) with shards and with the passphrase', async () => {
+    const file = roundTrip(fixture.file);
+    expect(file.h.v).toBe(2);
+    expect(dec.decode((await open(file, { shards: await parseAll(fixture.shards.slice(1)) })).data)).toBe(fixture.plaintext);
+    expect(dec.decode((await open(file, { passphrase: fixture.passphrase })).data)).toBe(fixture.plaintext);
+    expect(await forgedShards(file.h, await parseAll(fixture.shards))).toEqual([]); // v2: no commitments, nothing flagged
+  });
+
+  it('writes v3 with a key commitment and one commitment per shard', async () => {
+    const { file } = await seal(text('x'), { shards: { k: 2, n: 4 } });
+    expect(file.h.v).toBe(3);
+    expect(file.h.kc).toHaveLength(44);
+    expect(file.h.shamir!.commits).toHaveLength(4);
+    const noKc = structuredClone(file); delete noKc.h.kc;
+    expect(() => roundTrip(noKc)).toThrow(/Not a valid/);
+    const short = structuredClone(file); short.h.shamir!.commits!.pop();
+    expect(() => roundTrip(short)).toThrow(/Not a valid/);
+    expect(() => parseVaultFile(JSON.stringify({ ...file, h: { ...file.h, v: 4 } }))).toThrow(/newer version/);
+  });
+
+  it('names a forged shard with exactly k shards, and opens once a genuine one is added', async () => {
+    const { file, shards } = await seal(text('commit'), { shards: { k: 3, n: 5 } });
+    const parsed = await parseAll(shards);
+    const forged = { ...parsed[3], share: parsed[3].share.slice() };
+    forged.share[0] ^= 0x01;
+    const evil = await parseShard(await encodeShard(forged)); // valid checksum, tampered share
+    expect(await forgedShards(file.h, [parsed[0], evil, parsed[2]])).toEqual([4]);
+    await expect(open(file, { shards: [parsed[0], evil, parsed[2]] })).rejects.toThrow(/#4 doesn't match/);
+    const out = await open(file, { shards: [parsed[0], evil, parsed[2], parsed[1]] });
+    expect([dec.decode(out.data), out.bad]).toEqual(['commit', [4]]);
+  });
+
+  // The attack key commitment exists for: a malicious sealer makes the passphrase slot unwrap to a
+  // different key than the one the vault (and kc) was built for, to show different people different contents.
+  it('rejects a vault whose key slot unwraps to a key other than the committed one', async () => {
+    const { wrap, keyCommit, argonRaw, aad, aesKey } = __testing;
+    const id = '00112233aabbccdd';
+    const k1 = rand(32), k2 = rand(32);
+    const kdf = { name: 'argon2id' as const, ...FAST, salt: toB64(rand(16)) };
+    const passRaw = await argonRaw('pw', kdf);
+    const h = { v: 3 as const, alg: 'AES-256-GCM' as const, id, created: new Date().toISOString(), label: '', shamir: null, kdf,
+      slots: [await wrap('pass', id, { passRaw }, k2)], kc: await keyCommit(k1, id) };
+    const iv = rand(12);
+    const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv, additionalData: aad(h) }, await aesKey(k1), new Uint8Array(64));
+    const evil = roundTrip({ h, iv: toB64(iv), ct: toB64(new Uint8Array(ct)) });
+    await expect(open(evil, { passphrase: 'pw' })).rejects.toThrow(/keys don't agree/);
+  });
+
+  it('hardens new passphrases with Argon2id at 256 MiB by default', async () => {
+    const { file } = await seal(text('strong'), { passphrase: 'correct horse battery staple' });
+    expect(file.h.kdf).toMatchObject({ m: STRONG_KDF.m, t: STRONG_KDF.t });
+    expect(dec.decode((await open(roundTrip(file), { passphrase: 'correct horse battery staple' })).data)).toBe('strong');
+  }, 30_000);
 });

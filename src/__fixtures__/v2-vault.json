@@ -1,0 +1,45 @@
+{
+  "note": "Real v2 vault produced by the v2 code (commit before format v3). Must keep opening forever.",
+  "passphrase": "fixture passphrase",
+  "plaintext": "v2 fixture: sealed before the v3 format existed",
+  "shards": [
+    "ztv2.cd82dfed953a12cf.1.2.3.b5b8f8541f549d4f.SFKBKGrjAlYsUul9dzl7me4nfg-v6OYKL73fpMoIz4e0.12850274",
+    "ztv2.cd82dfed953a12cf.2.2.3.b5b8f8541f549d4f.0IrjkGpVFlbNqJXeN-RUQpBZ2akgyqN9Z22Vu6VBVa3t.d2a2d1d1",
+    "ztv2.cd82dfed953a12cf.3.2.3.b5b8f8541f549d4f.ChL2a2r3Z1YRZ0Q2dasXlzf-3ZbGnTYi5jZiRKT7-TnK.4f0607d0"
+  ],
+  "file": {
+    "h": {
+      "v": 2,
+      "alg": "AES-256-GCM",
+      "id": "cd82dfed953a12cf",
+      "created": "2026-10-05T15:07:53.214Z",
+      "label": "v2 fixture",
+      "shamir": {
+        "k": 2,
+        "n": 3,
+        "fp": "b5b8f8541f549d4f"
+      },
+      "kdf": {
+        "name": "argon2id",
+        "m": 8192,
+        "t": 1,
+        "p": 1,
+        "salt": "oeD5ZfbBrpseY27LXi+deg=="
+      },
+      "slots": [
+        {
+          "type": "shards",
+          "iv": "eXVuPkKxGm6ivriM",
+          "key": "rjK/3Imq6TGI7NWjcqAitWY5PdDVD30RkwKTvpJvpGQL6g/fmrhL9i8TFxvtLNPR"
+        },
+        {
+          "type": "pass",
+          "iv": "XYZH6SgTzCD01jtt",
+          "key": "Cc7LlEtzFoJELhmfck4RBc3UI0Xs2On6oPbJqjD+YDopFoRuod79wE7UmSW6UGYN"
+        }
+      ]
+    },
+    "iv": "hjWZDkwQxkNMt6xM",
+    "ct": "inS34iHBRuR0UzGpNH/yq+7xe61IBKhgFKU2ikfT3EW2VyYbTNlclGbJpz5L08bJGw+PnqVw2jOIO5V/OCdbbxIhxxiNsNEhL0L/5/fkNWvoCQA31rNe+CmbaNjt9DUVD8yDpogs6CQ4qgnAVXGDDd564epxulEKwq5LJcMPkX+IPTzgw/RNyw=="
+  }
+}
