@@ -1,0 +1,14 @@
+{
+  "_note": "Round local prices close to the USD price. Each amount must match the currency option set on the Stripe price, or checkout will charge a different number than the site shows. Countries not listed see USD.",
+  "default": "USD",
+  "currencies": {
+    "USD": { "yearly": 60, "lifetime": 199, "countries": [] },
+    "EUR": { "yearly": 59, "lifetime": 189, "countries": ["AT", "BE", "HR", "CY", "EE", "FI", "FR", "DE", "GR", "IE", "IT", "LV", "LT", "LU", "MT", "NL", "PT", "SK", "SI", "ES"] },
+    "GBP": { "yearly": 49, "lifetime": 159, "countries": ["GB"] },
+    "INR": { "yearly": 4999, "lifetime": 16499, "countries": ["IN"] },
+    "CAD": { "yearly": 79, "lifetime": 269, "countries": ["CA"] },
+    "AUD": { "yearly": 89, "lifetime": 299, "countries": ["AU"] },
+    "JPY": { "yearly": 8900, "lifetime": 29800, "countries": ["JP"] },
+    "CHF": { "yearly": 55, "lifetime": 179, "countries": ["CH", "LI"] }
+  }
+}

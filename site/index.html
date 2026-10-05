@@ -20,7 +20,7 @@
   <link rel="preload" href="/fonts/bodoni.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="/fonts/archivo.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/site.css">
-  <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Zero-Trust Vault","applicationCategory":"SecurityApplication","operatingSystem":"Web, iOS, Android, macOS, Windows, Linux","description":"Client-side, zero-knowledge encryption with Shamir secret sharing, passkeys and a dead man's switch.","offers":[{"@type":"Offer","name":"Free","price":"0","priceCurrency":"USD"},{"@type":"Offer","name":"Pro (yearly)","price":"60","priceCurrency":"USD"},{"@type":"Offer","name":"Lifetime","price":"199","priceCurrency":"USD"}]}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Zero-Trust Vault","applicationCategory":"SecurityApplication","operatingSystem":"Web, iOS, Android, macOS, Windows, Linux","description":"Client-side, zero-knowledge encryption with Shamir secret sharing, passkeys and a dead man's switch.","offers":[{"@type":"Offer","name":"Free","price":"0","priceCurrency":"%CURRENCY%"},{"@type":"Offer","name":"Pro (yearly)","price":"%AMOUNT_YEARLY%","priceCurrency":"%CURRENCY%"},{"@type":"Offer","name":"Lifetime","price":"%AMOUNT_LIFETIME%","priceCurrency":"%CURRENCY%"}]}</script>
 </head>
 <body>
   <div class="micro" aria-hidden="true"><span>Zero-Trust Vault · Certificate of custody · Non-negotiable · Opens only by quorum · Keys never leave the holder · Zero-knowledge · Zero-Trust Vault · Certificate of custody · Non-negotiable · Opens only by quorum · Keys never leave the holder · Zero-knowledge ·</span></div>
@@ -183,31 +183,31 @@
           <div class="note">
             <span class="den tl">0</span><span class="den br">0</span>
             <img class="note-rosette" src="/art/rosette-faint.svg" alt="">
-            <div class="note-face"><span class="label">Free</span><strong>$0</strong><span class="serial">Nº F-000000</span></div>
+            <div class="note-face"><span class="label">Free</span><strong>%PRICE_FREE%</strong><span class="serial">Nº F-000000</span></div>
           </div>
           <ul><li>Unlimited vaults on your devices</li><li>Coupons, passphrase, two-factor, passkeys</li><li>Your own Google Drive as storage</li><li>Recovery kits, drills, QR scanning</li><li>Offline app and air-gap mode</li></ul>
           <a class="btn ghost block" href="/app/">Start free</a>
         </article>
         <article class="note-col featured reveal">
           <div class="note red">
-            <span class="den tl">60</span><span class="den br">60</span>
+            <span class="den tl">%DEN_YEARLY%</span><span class="den br">%DEN_YEARLY%</span>
             <img class="note-rosette" src="/art/rosette-faint-red.svg" alt="">
-            <div class="note-face"><span class="label">Pro · yearly</span><strong>$60</strong><span class="serial">Nº P-060060</span></div>
+            <div class="note-face"><span class="label">Pro · yearly</span><strong>%PRICE_YEARLY%</strong><span class="serial">Nº P-%SERIAL_YEARLY%</span></div>
           </div>
           <ul><li>Everything in Free</li><li>Unlimited encrypted cloud vaults</li><li>Legacy: the dead man's switch</li><li>Up to 10 trustees and an escrow coupon</li><li>Releases even if billing lapses</li></ul>
           <a class="btn block" href="/app/#settings">Upgrade in the app</a>
         </article>
         <article class="note-col reveal">
           <div class="note">
-            <span class="den tl">199</span><span class="den br">199</span>
+            <span class="den tl">%DEN_LIFETIME%</span><span class="den br">%DEN_LIFETIME%</span>
             <img class="note-rosette" src="/art/rosette-faint.svg" alt="">
-            <div class="note-face"><span class="label">Lifetime</span><strong>$199</strong><span class="serial">Nº L-199199</span></div>
+            <div class="note-face"><span class="label">Lifetime</span><strong>%PRICE_LIFETIME%</strong><span class="serial">Nº L-%SERIAL_LIFETIME%</span></div>
           </div>
           <ul><li>Everything in Pro, forever</li><li>No renewals to forget</li><li>Made for estate planning</li></ul>
           <a class="btn ghost block" href="/app/#settings">Get Lifetime</a>
         </article>
       </div>
-      <p class="fine">Prices in USD. Secure checkout by Stripe. Cancel anytime; your vaults keep working on Free.</p>
+      <p class="fine">Prices in %CURRENCY%. Secure checkout by Stripe. Cancel anytime; your vaults keep working on Free.</p>
     </section>
 
     <section class="block wrap qa-grid" id="qa">

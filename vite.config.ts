@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
-import { cpSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { landingPages } from './site/pricing';
 import { defineConfig, loadEnv, type Plugin } from 'vite';
 import { viteSingleFile } from 'vite-plugin-singlefile';
 
@@ -52,10 +53,16 @@ function site(siteUrl: string): Plugin {
     name: 'ztv-site',
     apply: 'build',
     closeBundle() {
-      cpSync('site', 'dist', { recursive: true });
-      for (const f of readdirSync('site').filter((f) => f.endsWith('.html'))) {
+      cpSync('site', 'dist', { recursive: true, filter: (f) => !/\.(ts|json)$/.test(f) });
+      for (const f of readdirSync('site').filter((f) => f.endsWith('.html') && f !== 'index.html')) {
         writeFileSync(`dist/${f}`, readFileSync(`site/${f}`, 'utf8').replaceAll('%SITE_URL%', siteUrl));
       }
+      // The landing page is rendered once per currency (dist/p/<cur>.html). vercel.json rewrites "/" to the
+      // visitor's currency by country; there is deliberately no dist/index.html so that rewrite always wins.
+      rmSync('dist/index.html', { force: true });
+      mkdirSync('dist/p', { recursive: true });
+      const landing = readFileSync('site/index.html', 'utf8').replaceAll('%SITE_URL%', siteUrl);
+      for (const [cur, page] of Object.entries(landingPages(landing))) writeFileSync(`dist/p/${cur.toLowerCase()}.html`, page);
     },
   };
 }

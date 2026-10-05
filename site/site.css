@@ -120,7 +120,7 @@ em { font-family: var(--display); font-style: italic; color: var(--red); font-we
 .seal text { font: 600 13px var(--sans); font-stretch: 125%; letter-spacing: 0.08em; fill: var(--red); }
 
 /* Articles */
-.block { padding-block: clamp(5rem, 10vw, 8.5rem); }
+section.block { padding-block: clamp(5rem, 10vw, 8.5rem); }
 .articles { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 2px solid var(--ink); }
 .articles article { padding: 2.2rem 2.2rem 0 0; display: grid; gap: 0.8rem; align-content: start; }
 .articles article + article { padding-left: 2.2rem; border-left: 1px solid var(--rule-2); }
@@ -189,9 +189,10 @@ em { font-family: var(--display); font-style: italic; color: var(--red); font-we
 .note.red { background-image: url("/art/band-red.svg"), url("/art/band-red.svg"); }
 .note-rosette { position: absolute; width: 58%; left: 50%; top: 50%; transform: translate(-50%, -50%); opacity: 0.22; }
 .note-face { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 0.15rem; text-align: center; }
-.note-face strong { font: 400 clamp(2.4rem, 4vw, 3.4rem)/1 var(--display); font-variation-settings: "opsz" 96; }
+.note-face strong { font: 600 clamp(2.3rem, 3.8vw, 3.2rem)/1 var(--display); font-variation-settings: "opsz" 11; letter-spacing: -0.01em; }
+.note-face strong .cur { font: 500 0.42em var(--sans); vertical-align: 0.95em; margin-right: 0.06em; }
 .note.red .note-face strong { color: var(--red); }
-.den { position: absolute; font: 400 1.5rem/1 var(--display); color: var(--ink-2); }
+.den { position: absolute; font: 600 1.4rem/1 var(--display); font-variation-settings: "opsz" 11; color: var(--ink-2); }
 .note.red .den { color: var(--red); }
 .den.tl { top: 34px; left: 22px; } .den.br { bottom: 34px; right: 22px; }
 .fine { color: var(--ink-3); font-size: 0.86rem; text-align: center; margin-top: 2.2rem; }

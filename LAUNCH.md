@@ -53,6 +53,17 @@ Smallest money-making launch: Vercel + Google Drive + Supabase Auth, then add St
 5. **Settings → Billing → Subscriptions and emails:** turn on Smart Retries and failed-payment emails, so Stripe chases failed cards without you.
 6. **Tax:** you are the seller of record. Turn on Stripe Tax (Settings → Tax) or get advice. If you'd rather never deal with sales tax or VAT, a merchant-of-record provider (Paddle, Lemon Squeezy) is the alternative; only `server/billing.ts` would change.
 
+### Regional prices (do this when creating the two prices)
+
+The landing page shows each visitor a local price from `site/pricing.json` (e.g. ₹4,999 in India, £49 in the UK). Stripe must charge the same amounts:
+
+1. Open each price (Pro yearly, Lifetime) → **Add currency** (Stripe calls these *currency options*).
+2. Add every currency in `site/pricing.json` with **exactly** its amount: EUR 59/189, GBP 49/159, INR 4999/16499, CAD 79/269, AUD 89/299, JPY 8900/29800, CHF 55/179.
+3. Payment Links then charge visitors in their local currency automatically. Don't turn on Stripe's *Adaptive Pricing* instead: it converts at live rates, so checkout wouldn't match the price on the site.
+4. With Stripe Tax, set prices to **tax-inclusive** for EUR/GBP/CHF so the shown price is what people pay.
+
+To change a price later, edit `site/pricing.json` and the matching Stripe currency option together. To add a country, add it to `pricing.json` and run `npm test`: the test fails and shows the exact `vercel.json` rewrite that's missing.
+
 ## 3. Resend (Legacy emails)
 
 Add and verify your domain (DNS records), create an API key, and choose a sender such as `Zero-Trust Vault <legacy@YOUR-DOMAIN>`.
