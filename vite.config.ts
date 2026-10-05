@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { cpSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { landingPages } from './site/pricing';
+import { landingPages } from './site/pricing.ts';
 import { defineConfig, loadEnv, type Plugin } from 'vite';
 import { viteSingleFile } from 'vite-plugin-singlefile';
 

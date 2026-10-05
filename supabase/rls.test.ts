@@ -34,7 +34,12 @@ beforeAll(async () => {
     create function storage.foldername(name text) returns text[] language sql immutable as $$ select (string_to_array(name, '/'))[1:cardinality(string_to_array(name, '/')) - 1] $$;
     grant usage on schema auth, storage, public to anon, authenticated;
     grant execute on function auth.uid() to anon, authenticated;
-    grant all on storage.objects to authenticated;
+    grant all on storage.objects to authenticated, anon;
+    -- v1 left wide-open policies like these on the live project; the migration must remove them.
+    create policy "Allow Anon Access 5bhu2u_0" on storage.objects for select to anon using (bucket_id = 'vault-store');
+    create policy "Enable Burn Protocol 5bhu2u_1" on storage.objects for delete to anon using (bucket_id = 'vault-store');
+    create policy "login 5bhu2u_0" on storage.objects for select to authenticated using (bucket_id = 'vault-store');
+    create policy "other bucket stays" on storage.objects for select to anon using (bucket_id = 'avatars');
     alter default privileges in schema public grant all on tables to anon, authenticated; -- Supabase's default
     insert into auth.users values ('${A}'), ('${B}');
   `);
@@ -42,6 +47,11 @@ beforeAll(async () => {
 }, 60_000);
 
 describe('cloud storage', () => {
+  it('removes v1 wide-open policies for this bucket, leaves other buckets alone', async () => {
+    const names = (await service(`select policyname from pg_policies where schemaname = 'storage' and tablename = 'objects' order by 1`)).rows.map((r) => (r as { policyname: string }).policyname);
+    expect(names).toEqual(['other bucket stays', 'vault owner can create', 'vault owner can delete', 'vault owner can read']);
+  });
+
   it('free quota of 2, own folder only, valid names only, write-once, private', async () => {
     expect((await put(A, '000000000000000a')).error).toBeUndefined();
     expect((await put(A, '000000000000000b')).error).toBeUndefined();
@@ -49,6 +59,8 @@ describe('cloud storage', () => {
     expect((await put(A, '000000000000000d', B)).error).toMatch(RLS);
     expect((await as(A, `insert into storage.objects (bucket_id, name) values ('vault-store', $1)`, [`${A}/../x.vault`])).error).toMatch(RLS);
     expect((await as(B, 'select * from storage.objects')).rows).toHaveLength(0);
+    expect((await as(null, 'select * from storage.objects')).rows).toHaveLength(0); // anonymous: nothing
+    expect((await as(null, 'delete from storage.objects returning 1')).rows ?? []).toHaveLength(0);
     expect((await as(A, 'update storage.objects set name = name returning 1')).rows ?? []).toHaveLength(0);
   });
 });
