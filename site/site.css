@@ -265,3 +265,11 @@ footer nav a:hover { color: var(--ink); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
+
+.doc .hash { font: 500 0.82rem/1.5 var(--mono); letter-spacing: 0.04em; word-break: break-all; padding: 1rem 1.2rem; border: 1px solid var(--rule-3); background: var(--card); color: var(--ink); }
+.doc code { font: 500 0.88em var(--mono); background: var(--paper-2); padding: 0.1em 0.35em; }
+.doc .lede { margin-top: 1rem; }
+.doc a { text-decoration: underline; text-decoration-color: var(--red); text-underline-offset: 3px; }
+
+.fine-print { margin-top: 1.6rem; max-width: 36rem; color: rgba(243, 238, 227, 0.62); font-size: 0.88rem; line-height: 1.6; }
+.fine-print a { color: #ff5a62; text-underline-offset: 3px; }

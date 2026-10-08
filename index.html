@@ -82,8 +82,9 @@
               </div>
             </div>
             <div class="field">
-              <label for="label">Label <span class="muted">· optional, stored unencrypted so you can recognise it</span></label>
+              <label for="label">Label <span class="muted">· optional, NOT encrypted</span></label>
               <input id="label" maxlength="80" autocomplete="off" placeholder="e.g. Family recovery kit">
+              <div class="hint" id="label-hint">Anyone who holds the file can read this. Don't write what's inside it.</div>
             </div>
           </article>
 
@@ -442,7 +443,7 @@
 
         <article class="card">
           <header class="card-head"><i data-icon="download"></i><h2>Offline app</h2></header>
-          <p>Download this whole app as a single HTML file that runs with no network and no server. Keep it with your shards: if this website ever goes away, your vaults will still open.</p>
+          <p>Download this whole app as a single HTML file that runs with no network and no server. Keep it with your shards: if this website ever goes away, your vaults will still open. For the strongest guarantee, seal with this file instead of the website, after checking its <a href="/security#verify" target="_blank" rel="noopener">published fingerprint</a>.</p>
           <div class="row gap">
             <a class="btn primary" id="offline-dl" href="zero-trust-vault" download="zero-trust-vault.html"><i data-icon="download"></i>Download offline app</a>
           </div>

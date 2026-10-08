@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; font-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="referrer" content="no-referrer">
+  <title>Security · Zero-Trust Vault</title>
+  <link rel="canonical" href="%SITE_URL%/security">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23f3eee3'/%3E%3Cg fill='none' stroke='%2316120f' stroke-width='1.1'%3E%3Ccircle cx='16' cy='16' r='13.5'/%3E%3Ccircle cx='22' cy='16' r='5.2'/%3E%3Ccircle cx='19' cy='21.2' r='5.2'/%3E%3Ccircle cx='13' cy='21.2' r='5.2'/%3E%3Ccircle cx='10' cy='16' r='5.2'/%3E%3Ccircle cx='13' cy='10.8' r='5.2'/%3E%3Ccircle cx='19' cy='10.8' r='5.2'/%3E%3C/g%3E%3Ccircle cx='16' cy='16' r='2.4' fill='%23b5121b'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/site.css">
+</head>
+<body>
+    <header class="nav"><div class="wrap"><a class="logo" href="/"><svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1"><circle cx="16" cy="16" r="15"/><circle cx="22" cy="16" r="5.6"/><circle cx="19" cy="21.2" r="5.6"/><circle cx="13" cy="21.2" r="5.6"/><circle cx="10" cy="16" r="5.6"/><circle cx="13" cy="10.8" r="5.6"/><circle cx="19" cy="10.8" r="5.6"/></g><circle class="dot" cx="16" cy="16" r="2.4"/></svg>Zero-Trust Vault</a><a class="btn primary" href="/app/">Open the app</a></div></header>
+  <main class="wrap doc">
+    <p class="eyebrow">Security</p>
+    <h1>Everything we claim, in one place.</h1>
+    <p class="lede">You shouldn't have to take our word for any of it. This page names the libraries, links the audits, publishes the file format, and says plainly what we can't protect you from.</p>
+
+    <h2>What is audited, and what isn't</h2>
+    <ul>
+      <li><b>Audited:</b> the secret-sharing library, <a href="https://www.npmjs.com/package/shamir-secret-sharing">shamir-secret-sharing</a> (Privy). Independently audited by <a href="https://cure53.de/audit-report_privy-sss-library.pdf">Cure53</a> and by <a href="https://github.com/Zellic/publications/blob/master/Privy_Shamir_Secret_Sharing_-_Zellic_Audit_Report.pdf">Zellic</a>. We use it unmodified.</li>
+      <li><b>Not yet audited:</b> this application, which composes that library with the browser's built-in AES-GCM and HKDF (Web Crypto) and an Argon2id implementation (<a href="https://www.npmjs.com/package/hash-wasm">hash-wasm</a>). The design uses only standard primitives, but a third-party review of the app has not happened yet. We'll publish it here when it does. Until then, treat Zero-Trust Vault as beta software and keep a backup of anything critical.</li>
+    </ul>
+
+    <h2 id="verify">Verify the offline app</h2>
+    <p>Every visit to a website loads fresh code from its server. That is true of every web app, including ours: if our hosting were ever compromised, it could serve modified code. If that risk matters to you, don't use the website to seal anything important. <b>Download the offline file, check its fingerprint, and seal with that.</b></p>
+    <p>This is the SHA-256 of the offline app currently served at <a href="/app/zero-trust-vault">/app/zero-trust-vault</a> (version %VERSION%, %OFFLINE_KB% KB):</p>
+    <p class="hash">%OFFLINE_SHA256%</p>
+    <p>To check your copy, run <code>shasum -a 256 zero-trust-vault.html</code> (macOS, Linux) or <code>certutil -hashfile zero-trust-vault.html SHA256</code> (Windows) and compare. A plain-text copy is at <a href="/app/zero-trust-vault.sha256">/app/zero-trust-vault.sha256</a>.</p>
+    <p class="muted">Honest limit: this page and the file come from the same server, so the fingerprint catches corruption and mistakes, not a compromised server. The strong version of this check is to download the file once, keep it, and compare later downloads against your kept copy or against fingerprints other people have recorded.</p>
+
+    <h2>File format (v3)</h2>
+    <p>A <code>.vault</code> file is JSON. A random 256-bit data key encrypts the contents with AES-256-GCM. Each way of unlocking is a separate "slot" that wraps that data key under its own key-encryption key (derived with HKDF-SHA256). The header, including every slot, is authenticated as AES-GCM associated data, so changing any byte makes decryption fail.</p>
+    <ul>
+      <li><b>Shards:</b> Shamir secret sharing over GF(2<sup>8</sup>) of a 32-byte secret, with any <i>k</i> of <i>n</i> needed (2 ≤ <i>k</i> ≤ <i>n</i> ≤ 16). Fewer than <i>k</i> shards reveal nothing. A shard is <code>ztv2.&lt;vault id&gt;.&lt;index&gt;.&lt;k&gt;.&lt;n&gt;.&lt;fingerprint&gt;.&lt;share&gt;.&lt;checksum&gt;</code>.</li>
+      <li><b>Passphrase:</b> Argon2id, 256 MiB / 2 passes (64 MiB / 3 passes where the device can't allocate more). Parameters are stored in the header and bounds-checked on read.</li>
+      <li><b>Both together:</b> the key-encryption key is derived from the Shamir secret <i>and</i> the passphrase output, so neither alone opens the vault.</li>
+      <li><b>Passkey:</b> the WebAuthn PRF extension derives a secret inside the authenticator, with a per-vault salt.</li>
+      <li><b>Key commitment (v3):</b> the header carries HMAC-SHA256(dataKey, vault id). Every unwrapped key must match it, so a maliciously crafted vault can't show different people different contents.</li>
+      <li><b>Shard commitments (v3):</b> the header carries a 128-bit hash of every shard, so a forged shard is named even when exactly <i>k</i> shards are presented. Hash-based, so it stays safe against quantum computers.</li>
+      <li><b>Size hiding:</b> contents are padded with Padmé padding, and file name and type are encrypted along with the data.</li>
+      <li><b>No public-key cryptography</b> appears anywhere in the format.</li>
+      <li><b>Older vaults:</b> v2 vaults (same design without the two commitments) still open, and a real v2 vault is opened by our automated tests on every build.</li>
+    </ul>
+
+    <h2>What we can see</h2>
+    <p>Encryption happens on your device before anything is stored. Our servers only ever hold locked files. The vault's id, creation time, optional label, which unlock methods exist, and approximate size are visible to whoever holds the file. <b>The label is not encrypted, so never write what is inside it</b> ("Binance seed" tells a thief exactly what to look for). If you use Legacy, we also hold your trustees' names and emails, your message to them, and at most one escrowed shard, which on its own opens nothing.</p>
+
+    <h2>What this does not protect against</h2>
+    <ul>
+      <li>A compromised device or browser: malware, a malicious extension with page access, or a keylogger sees what you see.</li>
+      <li>Modified code served by a compromised website (see "Verify the offline app" above).</li>
+      <li>Losing more shards than you can spare, or forgetting your passphrase. There is no recovery and no backdoor, by design.</li>
+      <li>Memory forensics. JavaScript can't guarantee that secrets are wiped from RAM. Decrypted contents clear automatically after five minutes.</li>
+      <li>Legacy delivery if our service is not running on release day. <b>Your vaults never depend on us, but Legacy's automatic emails do.</b> Keep a printed recovery kit and the offline file with the people who matter as a fallback.</li>
+    </ul>
+
+    <h2>Not legal advice</h2>
+    <p>Zero-Trust Vault is a technical tool. It is not a will and does not give anyone legal authority. Whether a trustee may lawfully access an account or a crypto holding after your death depends on where you live, and exchange terms of service often forbid sharing credentials. Talk to a lawyer about your estate plan, and use this to make the technical side reliable.</p>
+
+    <h2>Report a vulnerability</h2>
+    <p>Email [SECURITY EMAIL] with steps to reproduce and the version shown in the app's header. Please don't disclose publicly until we've had a chance to fix it.</p>
+  </main>
+  </main>
+  <footer><div class="wrap"><span>© 2026 Zero-Trust Vault</span><nav aria-label="Legal"><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/security">Security</a><a href="/">Home</a></nav></div></footer>
+</body>
+</html>

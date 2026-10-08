@@ -54,9 +54,7 @@ function site(siteUrl: string): Plugin {
     apply: 'build',
     closeBundle() {
       cpSync('site', 'dist', { recursive: true, filter: (f) => !/\.(ts|json)$/.test(f) });
-      for (const f of readdirSync('site').filter((f) => f.endsWith('.html') && f !== 'index.html')) {
-        writeFileSync(`dist/${f}`, readFileSync(`site/${f}`, 'utf8').replaceAll('%SITE_URL%', siteUrl));
-      }
+
       // The landing page is rendered once per currency (dist/p/<cur>.html). vercel.json rewrites "/" to the
       // visitor's currency by country; there is deliberately no dist/index.html so that rewrite always wins.
       rmSync('dist/index.html', { force: true });
@@ -64,6 +62,14 @@ function site(siteUrl: string): Plugin {
       // Served with Content-Disposition from vercel.json so every browser saves it as zero-trust-vault.html.
       writeFileSync('dist/app/zero-trust-vault.html', readFileSync('dist/app/index.html', 'utf8')
         .replace(/\s*<link rel="(manifest|apple-touch-icon)"[^>]*>/g, ''));
+      // Publish the offline app's fingerprint (computed here, so it can never drift from the file served).
+      const offline = readFileSync('dist/app/zero-trust-vault.html');
+      const sha = createHash('sha256').update(offline).digest('hex');
+      writeFileSync('dist/app/zero-trust-vault.sha256', `${sha}  zero-trust-vault.html\n`);
+      const vars: Record<string, string> = { SITE_URL: siteUrl, OFFLINE_SHA256: sha, OFFLINE_KB: String(Math.round(offline.length / 1024)), VERSION: version };
+      for (const f of readdirSync('site').filter((f) => f.endsWith('.html') && f !== 'index.html')) {
+        writeFileSync(`dist/${f}`, readFileSync(`site/${f}`, 'utf8').replace(/%([A-Z0-9_]+)%/g, (m, k: string) => vars[k] ?? m));
+      }
       mkdirSync('dist/p', { recursive: true });
       const landing = readFileSync('site/index.html', 'utf8').replaceAll('%SITE_URL%', siteUrl);
       for (const [cur, page] of Object.entries(landingPages(landing))) writeFileSync(`dist/p/${cur.toLowerCase()}.html`, page);

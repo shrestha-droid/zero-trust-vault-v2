@@ -54,7 +54,7 @@ worker?.addEventListener('message', ({ data }: MessageEvent<{ id: number; result
 });
 worker?.addEventListener('error', () => {
   worker = null; // fall back to in-page crypto for every later call
-  for (const p of pending.values()) p.rej(new VaultError('The crypto worker failed to start. Please try again.'));
+  for (const p of pending.values()) p.rej(new VaultError('The crypto engine stopped, usually because the device ran out of memory. Try a smaller file, or use a computer.'));
   pending.clear();
   renderEngine();
 });
@@ -380,6 +380,14 @@ const kind = seg('payload-kind', (v) => {
   summary();
 });
 
+const labelHint = $('label-hint');
+const LABEL_DEFAULT = labelHint.textContent ?? '';
+labelEl.addEventListener('input', () => {
+  const risky = /\b(seed|mnemonic|passphrase|password|private key|recovery phrase|pin|binance|coinbase|ledger|trezor|metamask|wallet)\b/i.test(labelEl.value);
+  labelHint.textContent = risky ? 'This label is readable by anyone who holds the file. Describe the vault ("Family kit"), not what it protects.' : LABEL_DEFAULT;
+  labelHint.className = risky ? 'hint warn-text' : 'hint';
+});
+
 function updateTextCount() {
   $('text-count').textContent = `${secretText.value.length.toLocaleString()} characters`;
   summary();
@@ -404,6 +412,7 @@ function clearStaged() {
 dropzone($('file-drop'), async ([f]) => {
   if (!f) return;
   if (f.size > MAX_BYTES) return fail(new VaultError(`${f.name} is ${fmtBytes(f.size)}. The limit is 100 MB.`));
+  if (f.size > 25 * 1024 * 1024 && matchMedia('(pointer: coarse)').matches) toast('Large file on a phone: sealing needs several times its size in memory. If it fails, try on a computer.', 'error');
   stage({ name: f.name, type: f.type || 'application/octet-stream', data: new Uint8Array(await f.arrayBuffer()) });
   log(`Staged ${f.name} in memory`);
 });
@@ -728,7 +737,7 @@ function printKit(file: VaultFile, shards: string[]) {
     h('ol', {},
       h('li', {}, 'Get the vault file (.vault), or access to the device or account where it was saved.'),
       h('li', {}, `Collect ${shamir!.k} different shards from their holders${both ? ', plus the passphrase' : ''}.`),
-      h('li', {}, 'Open Zero-Trust Vault (the website or the offline HTML file) and go to Open.'),
+      h('li', {}, 'Open Zero-Trust Vault (the website, or the offline file zero-trust-vault.html if the website is gone) and go to Open.'),
       h('li', {}, 'Load the vault, then scan each QR code with "Scan QR" (or paste the text), and press Open vault. Typos and forged shards are detected automatically.')),
     h('p', {}, `Keep this page private. On its own it reveals nothing, but together with ${shamir!.k - 1} other shard${shamir!.k > 2 ? 's' : ''}${both ? ' and the passphrase' : ''} it unlocks the vault.`)));
   $('print-root').replaceChildren(...pages);

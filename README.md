@@ -15,6 +15,7 @@ The whole app builds into **one self-contained HTML file** with no CDN, no exter
 - **Forged-shard detection:** given more than *K* shards, the app finds a consistent *K*-subset, recovers the key, and names the shards that don't fit, even if a holder forged one with a valid checksum.
 - **Two-factor vaults:** KEK = HKDF(Shamir secret ‖ Argon2id(passphrase)). Stolen shards alone are useless, and so is a leaked passphrase.
 - **Passkeys (WebAuthn PRF):** the authenticator derives a secret in hardware, with a per-vault salt. Synced passkeys work on every device they sync to (same domain).
+- **Evidence is public:** the [security page](site/security.html) publishes the file format, names the audited library with its report links, and prints the offline app's SHA-256 (computed at build, so it can't drift).
 - **Argon2id** (256 MiB, 2 passes; 64 MiB fallback), with KDF parameters bounds-checked to stop memory-exhaustion headers.
 - **Key-committed** (v3): every unlocking key must match a commitment in the header, closing AES-GCM's multi-key ("invisible salamanders") gap.
 - **Padmé padding** hides exact payload sizes.

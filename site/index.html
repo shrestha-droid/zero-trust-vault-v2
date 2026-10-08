@@ -31,7 +31,7 @@
         <svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1"><circle cx="16" cy="16" r="15"/><circle cx="22" cy="16" r="5.6"/><circle cx="19" cy="21.2" r="5.6"/><circle cx="13" cy="21.2" r="5.6"/><circle cx="10" cy="16" r="5.6"/><circle cx="13" cy="10.8" r="5.6"/><circle cx="19" cy="10.8" r="5.6"/></g><circle class="dot" cx="16" cy="16" r="2.4"/></svg>
         <span>Zero-Trust Vault</span>
       </a>
-      <nav aria-label="Sections"><a href="#articles">Method</a><a href="#legacy">Legacy</a><a href="#specs">Security</a><a href="#notes">Pricing</a><a href="#qa">Questions</a></nav>
+      <nav aria-label="Sections"><a href="#articles">Method</a><a href="#legacy">Legacy</a><a href="/security">Security</a><a href="#notes">Pricing</a><a href="#qa">Questions</a></nav>
       <a class="nav-signin" href="/app/#signin">Sign in</a>
       <a class="btn" href="/app/">Open the vault</a>
     </div>
@@ -124,6 +124,7 @@
           <h2>Your card expires when you do. <em>Legacy doesn't.</em></h2>
           <p class="lede">Name the people. Keep living. If you ever go quiet, they receive your instructions, your encrypted vaults and one escrowed coupon, while we still hold nothing that opens anything.</p>
           <a class="btn lg light" href="/app/#legacy">Set up Legacy</a>
+          <p class="fine-print">Be clear about what depends on us: your vaults never do, but Legacy's automatic emails do, so they need our service running on release day. Give your trustees a printed recovery kit and the offline app as a fallback. Legacy is a technical tool, not a will or legal advice: check what your trustees may lawfully do where you live. <a href="/security">Details</a></p>
         </div>
         <article class="envelope reveal">
           <header><span class="label">Sealed instructions</span><span class="serial">Nº L-0042</span></header>
@@ -148,7 +149,7 @@
       <header class="head reveal">
         <p class="label">Specifications</p>
         <h2>Verify, <em>don't trust.</em></h2>
-        <p class="lede">We built this so that we are never the weak point. Every claim below is testable, and the file format is published in full.</p>
+        <p class="lede">We built this so that we are never the weak point. Every claim below is testable. The <a href="/security">security page</a> publishes the file format, names the audited library, and says what we can't protect you from.</p>
       </header>
       <dl class="datasheet reveal">
         <div><dt>Encryption</dt><dd>AES-256-GCM, authenticated. The header is bound to the ciphertext, so altering any byte fails.</dd></div>
@@ -158,7 +159,8 @@
         <div><dt>Isolation</dt><dd>Every key lives in a dedicated Web Worker, out of reach of the page and its extensions.</dd></div>
         <div><dt>Hardening</dt><dd>Strict Content Security Policy and Trusted Types. No third-party scripts, no CDNs, no trackers.</dd></div>
         <div><dt>Quantum</dt><dd>No public-key cryptography in the format. A quantum computer gets nothing better than brute force.</dd></div>
-        <div><dt>Longevity</dt><dd>One HTML file that runs offline, published with a SHA-256 checksum. If we vanish, your vaults still open.</dd></div>
+        <div><dt>Longevity</dt><dd>One HTML file that runs offline. If we vanish, your vaults still open. Legacy's automatic emails are the one thing that needs us running.</dd></div>
+        <div><dt>Trusting the code</dt><dd>A website loads fresh code on every visit, like any web app. To avoid trusting our server at all, download the offline file, check its published SHA-256, and seal with that. <a href="/security#verify">See the fingerprint</a>.</dd></div>
       </dl>
     </section>
 
@@ -214,14 +216,14 @@
       <header class="head">
         <p class="label">Questions &amp; answers</p>
         <h2>Questions <em>worth asking.</em></h2>
-        <p class="lede">The file format and threat model are published in full. Nothing here is a black box.</p>
+        <p class="lede">The <a href="/security">file format and threat model</a> are published in full. Nothing here is a black box.</p>
       </header>
       <div class="qa">
-        <details><summary><i>Q.</i>Can you see my secrets?</summary><p><i>A.</i>No. Encryption happens on your device before anything is stored, and the keys never leave it. Our servers only ever hold locked files, plus, if you use Legacy, your trustees' contacts, your message to them, and at most one coupon, which on its own reveals nothing.</p></details>
-        <details><summary><i>Q.</i>What if Zero-Trust Vault shuts down?</summary><p><i>A.</i>Your vaults still open. Keep the offline app (one HTML file) next to your coupons: it needs no server and no internet. The file format is documented, so anyone can audit or re-implement it.</p></details>
+        <details><summary><i>Q.</i>Can you see my secrets?</summary><p><i>A.</i>No. Encryption happens on your device before anything is stored, and the keys never leave it. Our servers only ever hold locked files, plus, if you use Legacy, your trustees' contacts, your message to them, and at most one coupon, which on its own reveals nothing. The one thing visible is the optional label you type, so never write what's inside it.</p></details>
+        <details><summary><i>Q.</i>What if Zero-Trust Vault shuts down?</summary><p><i>A.</i>Your vaults still open. Keep the offline app (one HTML file) next to your coupons: it needs no server and no internet, and the file format is documented, so anyone can re-implement it. The one thing that needs us running is Legacy's automatic emails, so give your trustees a printed recovery kit too.</p></details>
         <details><summary><i>Q.</i>What happens to Legacy if my payment fails after I'm gone?</summary><p><i>A.</i>It still fires. Pro is needed to set up or change a plan, but an armed plan is always delivered. A deceased person's card eventually fails, and Legacy is designed around that.</p></details>
         <details><summary><i>Q.</i>What if a coupon is lost, or forged?</summary><p><i>A.</i>With "3 of 5" you can lose two safely. If someone hands over a tampered coupon, the app tells you which one and opens the vault from the rest. You can re-key at any time to issue fresh coupons.</p></details>
-        <details><summary><i>Q.</i>Has it been audited?</summary><p><i>A.</i>The secret-sharing library has been independently audited. The app itself hasn't been third-party audited yet. We'll publish that when it happens.</p></details>
+        <details><summary><i>Q.</i>Has it been audited?</summary><p><i>A.</i>The secret-sharing library (<a href="https://www.npmjs.com/package/shamir-secret-sharing">shamir-secret-sharing</a>) was audited by <a href="https://cure53.de/audit-report_privy-sss-library.pdf">Cure53</a> and <a href="https://github.com/Zellic/publications/blob/master/Privy_Shamir_Secret_Sharing_-_Zellic_Audit_Report.pdf">Zellic</a>. The app itself hasn't been third-party audited yet, so treat it as beta and keep a backup of anything critical. We'll publish the review on the <a href="/security">security page</a> when it happens.</p></details>
         <details><summary><i>Q.</i>Do I need an account?</summary><p><i>A.</i>No. Everything works without one. Sign in with Google, Apple or email only for vaults synced across devices or for Legacy. You can also keep vaults in your own Google Drive.</p></details>
         <details><summary><i>Q.</i>Does it work on my phone?</summary><p><i>A.</i>Yes. Open it in your browser and choose "Add to Home Screen". It works offline, scans coupons with the camera, and supports Face ID and fingerprint passkeys.</p></details>
       </div>
@@ -241,7 +243,7 @@
     <div class="band" aria-hidden="true"></div>
     <div class="wrap foot">
       <a class="logo" href="/"><svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1"><circle cx="16" cy="16" r="15"/><circle cx="22" cy="16" r="5.6"/><circle cx="19" cy="21.2" r="5.6"/><circle cx="13" cy="21.2" r="5.6"/><circle cx="10" cy="16" r="5.6"/><circle cx="13" cy="10.8" r="5.6"/><circle cx="19" cy="10.8" r="5.6"/></g><circle class="dot" cx="16" cy="16" r="2.4"/></svg><span>Zero-Trust Vault</span></a>
-      <nav aria-label="Legal"><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="#specs">Security</a><a href="/app/">App</a></nav>
+      <nav aria-label="Legal"><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/security">Security</a><a href="/app/">App</a></nav>
       <span class="serial">© 2026 · Nº ZTV-0001</span>
     </div>
   </footer>
