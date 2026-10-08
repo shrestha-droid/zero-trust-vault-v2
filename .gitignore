@@ -6,3 +6,10 @@ dist/
 .vercel
 .env*
 supabase/.temp/
+
+# Local downloads land in scripts/ sometimes: never commit them. Only the generator script belongs here.
+scripts/*
+!scripts/guilloche.mjs
+*.key
+*.dmg
+*.vault
