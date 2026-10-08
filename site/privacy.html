@@ -35,7 +35,7 @@
     <ul>
       <li><b>Account:</b> your email address, and either a password hash or the sign-in provider you chose (Google, Apple, GitHub or Microsoft). Those providers share your name and email with us; we never see your password for them.</li>
       <li><b>Cloud vaults:</b> encrypted vault files you choose to upload. Their headers include a vault id, creation time, an optional label you typed, and which unlock methods exist. Contents, file names and file types are encrypted.</li>
-      <li><b>Plan:</b> your plan status and Stripe customer/subscription identifiers. Card details are handled by Stripe and never reach us.</li>
+      <li><b>Plan:</b> your plan status and Dodo Payments customer/subscription identifiers. Card details are handled by Dodo Payments and never reach us.</li>
       <li><b>Legacy (if you use it):</b> your trustees' names and email addresses, your check-in schedule and history, the message you write to them (readable by us so we can deliver it), the ids of vaults to share, and at most one shard you choose to escrow. One shard cannot open a vault.</li>
     </ul>
 
@@ -57,7 +57,7 @@
       <li>Supabase (database, authentication, encrypted file storage), region [REGION].</li>
       <li>Google, Apple, GitHub or Microsoft, only if you choose to sign in with them.</li>
       <li>Vercel (website hosting and server functions).</li>
-      <li>Stripe (payments).</li>
+      <li>Dodo Payments (payments and tax, as merchant of record).</li>
       <li>Resend (sending reminder and Legacy emails).</li>
     </ul>
 

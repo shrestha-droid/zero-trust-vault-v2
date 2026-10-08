@@ -1,5 +1,5 @@
 {
-  "_note": "Round local prices close to the USD price. Each amount must match the currency option set on the Stripe price, or checkout will charge a different number than the site shows. Countries not listed see USD.",
+  "_note": "Round local prices close to the USD price. Set the same amounts in Dodo (Localized Pricing), or checkout will charge a different number than the site shows. Countries not listed see USD.",
   "default": "USD",
   "currencies": {
     "USD": { "yearly": 60, "lifetime": 199, "countries": [] },

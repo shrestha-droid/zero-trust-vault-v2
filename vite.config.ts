@@ -11,7 +11,7 @@ const { version } = JSON.parse(readFileSync('package.json', 'utf8')) as { versio
  * The policy travels with the HTML, so it protects the hosted app and the downloaded offline file alike,
  * on any host (static platform headers can't know per-build hashes).
  */
-function csp(supabaseUrl?: string, googleDrive = false): Plugin {
+function csp(supabaseUrl?: string, googleDrive = false, payments = false): Plugin {
   return {
     name: 'ztv-csp',
     apply: 'build',
@@ -25,7 +25,7 @@ function csp(supabaseUrl?: string, googleDrive = false): Plugin {
       const styles = [...src.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/g)].map((m) => sha(m[1]));
       if (scripts.length !== 1 || styles.length !== 1) throw new Error(`expected 1 inline script + 1 style, got ${scripts.length}/${styles.length}`);
       // Only the backends this build is configured for. Google Drive is called directly from the browser.
-      const origins = [supabaseUrl, supabaseUrl?.replace(/^https:/, 'wss:'), googleDrive && 'https://www.googleapis.com'].filter(Boolean);
+      const origins = [supabaseUrl, supabaseUrl?.replace(/^https:/, 'wss:'), googleDrive && 'https://www.googleapis.com', payments && "'self'"].filter(Boolean);
       const connect = origins.length ? origins.join(' ') : "'none'";
       const policy = [
         "default-src 'none'",
@@ -85,10 +85,10 @@ export default defineConfig(({ mode }) => {
     define: { __APP_VERSION__: JSON.stringify(version) },
     build: { outDir: 'dist/app', target: 'es2022', modulePreload: false, reportCompressedSize: false },
     worker: { format: 'es' as const },
-    plugins: [viteSingleFile(), csp(env.VITE_SUPABASE_URL, Boolean(env.VITE_GOOGLE_CLIENT_ID)), site((env.SITE_URL ?? '').replace(/\/+$/, ''), {
-      // Buy buttons only go to real checkout once Stripe links exist; Legacy only once email can be sent.
-      payments: Boolean(env.VITE_CHECKOUT_URL_YEARLY),
-      legacy: Boolean(env.VITE_CHECKOUT_URL_YEARLY && env.RESEND_API_KEY),
+    plugins: [viteSingleFile(), csp(env.VITE_SUPABASE_URL, Boolean(env.VITE_GOOGLE_CLIENT_ID), env.VITE_PAYMENTS === '1'), site((env.SITE_URL ?? '').replace(/\/+$/, ''), {
+      // Buy buttons only go to real checkout once checkout is enabled; Legacy only once email can be sent.
+      payments: env.VITE_PAYMENTS === '1',
+      legacy: env.VITE_PAYMENTS === '1' && Boolean(env.RESEND_API_KEY),
     })],
   };
 });

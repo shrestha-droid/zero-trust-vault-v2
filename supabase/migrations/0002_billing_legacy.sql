@@ -1,6 +1,6 @@
 -- Zero-Trust Vault: plans (Free/Pro), cloud quota, and Legacy (dead man's switch).
 -- Run after 0001_vault_store.sql. Every write that grants or changes a paid plan happens server-side
--- (api/stripe-webhook.ts with the service role); the browser can only read its own rows.
+-- (api/billing-webhook.ts with the service role); the browser can only read its own rows.
 
 -- ---------------------------------------------------------------- Entitlements
 create table if not exists public.entitlements (

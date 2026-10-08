@@ -86,7 +86,7 @@ Post as a person sharing a project and asking for feedback, not as an ad. Be in 
 
 ---
 
-## Product Hunt (launch only after the domain and Stripe are live)
+## Product Hunt (launch only after the domain and payments are live)
 
 - **Name:** Zero-Trust Vault
 - **Tagline (60 chars):** Split your secrets between people you trust
@@ -112,4 +112,4 @@ Post as a person sharing a project and asking for feedback, not as an ad. Be in 
 | Vaults sealed (ask in feedback) | Whether the product is understood |
 | "Why not?" replies | The objections to fix on the site |
 
-Ten emails from strangers who aren't friends is a real signal. A hundred means you should set up Stripe the same day.
+Ten emails from strangers who aren't friends is a real signal. A hundred means you should enable payments the same day.

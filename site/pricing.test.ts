@@ -32,7 +32,7 @@ describe('regional pricing', () => {
     expect(vercel.rewrites).toEqual(expectedRewrites());
   });
 
-  it('buy buttons collect a waitlist email until Stripe is configured, then go to real checkout', () => {
+  it('buy buttons collect a waitlist email until payments are enabled, then go to real checkout', () => {
     const off = landingPages(template, { payments: false, legacy: false, fragments }).USD;
     expect(off).toContain('href="#waitlist">Join the waitlist</a>');
     expect(off).not.toContain('href="/app/#settings"');

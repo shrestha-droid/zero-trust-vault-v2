@@ -59,12 +59,12 @@ npm run check          # typecheck + tests + production build → dist/
 
 ## Deploy
 
-Vercel hosts the site, the app and three serverless functions. Supabase provides auth, the database and encrypted file storage. Stripe handles payments and Resend sends Legacy emails. **[LAUNCH.md](LAUNCH.md) is the step-by-step go-live checklist.**
+Vercel hosts the site, the app and three serverless functions. Supabase provides auth, the database and encrypted file storage. Dodo Payments (merchant of record) handles payments and tax and Resend sends Legacy emails. **[LAUNCH.md](LAUNCH.md) is the step-by-step go-live checklist.**
 
 ```
 /            marketing site (site/: no JavaScript, script-src 'none')
 /app/        the app (single self-contained HTML file, installable as a PWA)
-/api/*       Vercel Functions: stripe-webhook, legacy-tick (daily cron), legacy-checkin
+/api/*       Vercel Functions: billing-webhook, checkout, legacy-tick (daily cron), legacy-checkin
 ```
 
 The app's Content Security Policy is generated at build time with script/style hashes and embedded as a `<meta>` tag, so it protects the hosted app and the downloaded offline file alike. `vercel.json` adds the static headers (HSTS, frame denial and so on).
@@ -81,7 +81,7 @@ Passkey slots are bound to the domain they were created on (the WebAuthn RP ID).
 | Encrypted cloud vaults | 2 | Unlimited |
 | Legacy (dead man's switch) | | ✓ |
 
-Entitlements are written only by the Stripe webhook (service role) and enforced in Postgres via RLS, not in the browser. Opening a vault never requires a plan. An armed Legacy plan is delivered even if billing lapses; Pro is only needed to create or edit one.
+Entitlements are written only by the billing webhook (service role) and enforced in Postgres via RLS, not in the browser. Opening a vault never requires a plan. An armed Legacy plan is delivered even if billing lapses; Pro is only needed to create or edit one.
 
 ## File format (v3; v2 still readable)
 
@@ -144,7 +144,7 @@ src/style.css              design system (dark and light, mobile bottom bar, pri
 public/                    service worker, PWA manifest and icons (served under /app/)
 site/                      marketing site, terms, privacy, social image (served at /)
 server/                    billing + Legacy logic (pure, tested) and env/Supabase admin client
-api/                       Vercel Functions wiring server/ to Stripe, Supabase and Resend
+api/                       Vercel Functions wiring server/ to Dodo Payments, Supabase and Resend
 supabase/migrations/       bucket, entitlements, quotas, Legacy tables + RLS
 supabase/rls.test.ts       migrations run in PGlite (real Postgres) and attacked as two users
 vite.config.ts             single-file build, CSP hash generation, site copy

@@ -1,90 +1,138 @@
 import { describe, expect, it } from 'vitest';
 import { makeWaitlistHandler } from './waitlist.js';
-import { entitlementFrom, hmacHex, makeBillingHandler, refundedCustomer, verifyStripe, type EntitlementRow } from './billing.js';
+import { entitlementFrom, makeBillingHandler, makeCheckoutHandler, refundTarget, signStandard, verifyDodo, type EntitlementRow } from './billing.js';
 import {
   DAY, decide, esc, sendEmail, makeCheckinHandler, makeCheckinToken, makeTickHandler, releaseEmail, runTick, verifyCheckinToken,
   type Email, type LegacyPlan,
 } from './legacy.js';
 
-const SECRET = 'whsec_test';
+const SECRET = `whsec_${btoa('test-signing-key-0123456789abcdef')}`;
 const UID = '3f1c2a9e-8b7d-4c6e-9a1b-2c3d4e5f6a7b';
-const signed = async (body: string, t = Math.floor(Date.now() / 1000), secret = SECRET) => `t=${t},v1=${await hmacHex(secret, `${t}.${body}`)}`;
-const post = (body: string, sig: string | null) => new Request('https://x/api/stripe-webhook', { method: 'POST', body, headers: sig ? { 'stripe-signature': sig } : {} });
+const headers = async (body: string, t = Math.floor(Date.now() / 1000), secret = SECRET, id = 'msg_1') =>
+  new Headers({ 'webhook-id': id, 'webhook-timestamp': String(t), 'webhook-signature': `v1,${await signStandard(secret, id, String(t), body)}` });
+const post = async (body: string, h?: Headers) => new Request('https://x/api/billing-webhook', { method: 'POST', body, headers: h ?? (await headers(body)) });
 
-describe('stripe signature', () => {
-  it('accepts a valid signature, rejects tampering, wrong secret, and replays', async () => {
+describe('dodo (standard webhooks) signature', () => {
+  it('accepts a valid signature, rejects tampering, wrong secret, replays and missing headers', async () => {
     const body = '{"a":1}';
-    expect(await verifyStripe(body, await signed(body), SECRET)).toBe(true);
-    expect(await verifyStripe('{"a":2}', await signed(body), SECRET)).toBe(false);
-    expect(await verifyStripe(body, await signed(body, undefined, 'other'), SECRET)).toBe(false);
-    expect(await verifyStripe(body, await signed(body, Math.floor(Date.now() / 1000) - 3600), SECRET)).toBe(false);
-    expect(await verifyStripe(body, null, SECRET)).toBe(false);
-    expect(await verifyStripe(body, await signed(body), '')).toBe(false);
+    expect(await verifyDodo(body, await headers(body), SECRET)).toBe(true);
+    expect(await verifyDodo('{"a":2}', await headers(body), SECRET)).toBe(false);
+    expect(await verifyDodo(body, await headers(body, undefined, `whsec_${btoa('other-key')}`), SECRET)).toBe(false);
+    expect(await verifyDodo(body, await headers(body, Math.floor(Date.now() / 1000) - 3600), SECRET)).toBe(false);
+    expect(await verifyDodo(body, new Headers(), SECRET)).toBe(false);
+    expect(await verifyDodo(body, await headers(body), '')).toBe(false);
+    expect(await verifyDodo(body, await headers(body), 'whsec_not base64!!')).toBe(false);
   });
-
   it('accepts any of several v1 signatures (secret rotation)', async () => {
-    const body = '{}';
-    const t = Math.floor(Date.now() / 1000);
-    expect(await verifyStripe(body, `t=${t},v1=deadbeef,v1=${await hmacHex(SECRET, `${t}.${body}`)}`, SECRET)).toBe(true);
+    const body = '{}', h = await headers(body);
+    h.set('webhook-signature', `v1,AAAA ${h.get('webhook-signature')}`);
+    expect(await verifyDodo(body, h, SECRET)).toBe(true);
   });
 });
 
 describe('entitlementFrom', () => {
-  const ev = (type: string, object: object) => ({ type, data: { object } });
-  it('checkout → pro (subscription) or lifetime (one-time payment)', () => {
-    expect(entitlementFrom(ev('checkout.session.completed', { mode: 'subscription', client_reference_id: UID, customer: 'cus_1', subscription: 'sub_1', payment_status: 'paid' })))
-      .toMatchObject({ user_id: UID, plan: 'pro', status: 'active', stripe_subscription: 'sub_1' });
-    expect(entitlementFrom(ev('checkout.session.completed', { mode: 'payment', client_reference_id: UID, customer: 'cus_1', payment_status: 'paid' })))
-      .toMatchObject({ plan: 'pro', status: 'lifetime' });
+  const ev = (type: string, data: object) => ({ type, data });
+  const sub = { subscription_id: 'sub_1', customer: { customer_id: 'cus_1' }, metadata: { user_id: UID }, next_billing_date: '2030-01-01T00:00:00Z' };
+  it('subscription.active/renewed → pro with period end; on_hold/cancelled/expired → free', () => {
+    expect(entitlementFrom(ev('subscription.active', sub))).toMatchObject({ user_id: UID, plan: 'pro', status: 'active', subscription_ref: 'sub_1', customer_ref: 'cus_1', current_period_end: '2030-01-01T00:00:00.000Z' });
+    expect(entitlementFrom(ev('subscription.renewed', sub))).toMatchObject({ plan: 'pro' });
+    expect(entitlementFrom(ev('subscription.past_due', sub))).toMatchObject({ plan: 'pro', status: 'past_due' });
+    for (const t of ['on_hold', 'cancelled', 'expired', 'failed']) expect(entitlementFrom(ev(`subscription.${t}`, sub))).toMatchObject({ plan: 'free', status: t });
+    expect(entitlementFrom(ev('subscription.updated', { ...sub, status: 'active' }))).toMatchObject({ plan: 'pro' });
+    expect(entitlementFrom(ev('subscription.updated', { ...sub, status: 'cancelled' }))).toMatchObject({ plan: 'free' });
+    expect(entitlementFrom(ev('subscription.updated', sub))).toBeNull();
   });
-  it('a Lifetime payment with NO Stripe customer still grants Pro (Stripe omits the customer on one-time payments)', () => {
-    expect(entitlementFrom(ev('checkout.session.completed', { mode: 'payment', client_reference_id: UID, customer: null, payment_status: 'paid' })))
-      .toMatchObject({ user_id: UID, plan: 'pro', status: 'lifetime', stripe_customer: null });
-    // …but a subscription with no customer is malformed and must not grant anything
-    expect(entitlementFrom(ev('checkout.session.completed', { mode: 'subscription', client_reference_id: UID, customer: null, payment_status: 'paid' }))).toBeNull();
+  it('lifecycle events without a user id still resolve by customer; with neither they are dropped', () => {
+    expect(entitlementFrom(ev('subscription.cancelled', { subscription_id: 's', customer: { customer_id: 'cus_1' } }))).toMatchObject({ user_id: undefined, customer_ref: 'cus_1', plan: 'free' });
+    expect(entitlementFrom(ev('subscription.active', { subscription_id: 's' }))).toBeNull();
   });
-  it('ignores unpaid checkouts and missing/forged user ids', () => {
-    expect(entitlementFrom(ev('checkout.session.completed', { mode: 'payment', client_reference_id: UID, customer: 'c', payment_status: 'unpaid' }))).toBeNull();
-    expect(entitlementFrom(ev('checkout.session.completed', { mode: 'payment', client_reference_id: "x' or 1=1", customer: 'c' }))).toBeNull();
-    expect(entitlementFrom(ev('invoice.paid', {}))).toBeNull();
+  it('one-time payment of the Lifetime product → lifetime; subscription payments and other products do not', () => {
+    const pay = { metadata: { user_id: UID, plan: 'lifetime' }, customer: { customer_id: 'cus_2' } };
+    expect(entitlementFrom(ev('payment.succeeded', pay))).toMatchObject({ user_id: UID, plan: 'pro', status: 'lifetime', customer_ref: 'cus_2' });
+    expect(entitlementFrom(ev('payment.succeeded', { metadata: { user_id: UID }, product_cart: [{ product_id: 'pdt_life' }] }), { lifetime: 'pdt_life' })).toMatchObject({ status: 'lifetime' });
+    expect(entitlementFrom(ev('payment.succeeded', { metadata: { user_id: UID }, product_cart: [{ product_id: 'pdt_other' }] }), { lifetime: 'pdt_life' })).toBeNull();
+    expect(entitlementFrom(ev('payment.succeeded', { ...pay, subscription_id: 'sub_1' }))).toBeNull(); // renewal payment, not Lifetime
   });
-  it('subscription lifecycle maps status and period end (old and new API shapes)', () => {
-    const end = 1_900_000_000;
-    expect(entitlementFrom(ev('customer.subscription.updated', { id: 'sub_1', customer: 'cus_1', status: 'active', current_period_end: end })))
-      .toMatchObject({ plan: 'pro', status: 'active', current_period_end: new Date(end * 1000).toISOString() });
-    expect(entitlementFrom(ev('customer.subscription.updated', { id: 'sub_1', customer: 'cus_1', status: 'past_due', items: { data: [{ current_period_end: end }] } })))
-      .toMatchObject({ plan: 'pro', current_period_end: new Date(end * 1000).toISOString() });
-    expect(entitlementFrom(ev('customer.subscription.updated', { id: 'sub_1', customer: 'cus_1', status: 'unpaid' }))).toMatchObject({ plan: 'free' });
-    expect(entitlementFrom(ev('customer.subscription.deleted', { id: 'sub_1', customer: 'cus_1', status: 'active' }))).toMatchObject({ plan: 'free', status: 'canceled' });
+  it('ignores forged user ids and unrelated events', () => {
+    expect(entitlementFrom(ev('payment.succeeded', { metadata: { user_id: "x' or 1=1", plan: 'lifetime' } }))).toBeNull();
+    expect(entitlementFrom(ev('dispute.opened', {}))).toBeNull();
   });
 });
 
 describe('billing handler', () => {
-  const setup = (error: { message: string } | null = null) => {
-    const calls: [string, EntitlementRow][] = [];
+  const setup = (over: { error?: { message: string } | null; status?: string | null } = {}) => {
+    const error = over.error ?? null;
+    const calls: string[] = [];
     const h = makeBillingHandler({
-      secret: SECRET,
-      upsertByUser: async (r) => { calls.push(['user', r]); return { error }; },
-      updateByCustomer: async (r) => { calls.push(['customer', r]); return { error }; },
+      secret: SECRET, products: { lifetime: 'pdt_life' },
+      currentStatus: async () => over.status ?? null,
+      upsertByUser: async (r: EntitlementRow) => { calls.push(`user:${r.status}`); return { error }; },
+      updateByCustomer: async (r: EntitlementRow) => { calls.push(`customer:${r.status}`); return { error }; },
+      revoke: async (w) => { calls.push(`revoke:${w.user_id ?? w.customer}`); return { error: null }; },
     });
     return { h, calls };
   };
-  it('routes checkout to upsert-by-user and lifecycle to update-by-customer', async () => {
+  const evt = (type: string, data: object) => JSON.stringify({ business_id: 'b', type, timestamp: '2030-01-01T00:00:00Z', data });
+  const sub = { subscription_id: 's', customer: { customer_id: 'cus_1' } };
+
+  it('routes events with a user id to upsert-by-user and others to update-by-customer', async () => {
     const { h, calls } = setup();
-    const a = JSON.stringify({ type: 'checkout.session.completed', data: { object: { mode: 'subscription', client_reference_id: UID, customer: 'cus_1', payment_status: 'paid' } } });
-    const b = JSON.stringify({ type: 'customer.subscription.deleted', data: { object: { id: 's', customer: 'cus_1', status: 'canceled' } } });
-    expect((await h(post(a, await signed(a)))).status).toBe(200);
-    expect((await h(post(b, await signed(b)))).status).toBe(200);
-    expect(calls.map((c) => c[0])).toEqual(['user', 'customer']);
+    const a = evt('subscription.active', { ...sub, metadata: { user_id: UID } }), b = evt('subscription.cancelled', sub);
+    expect((await h(await post(a))).status).toBe(200);
+    expect((await h(await post(b))).status).toBe(200);
+    expect(calls).toEqual(['user:active', 'customer:cancelled']);
   });
-  it('400 on bad signature, 405 on GET, 500 on DB error (so Stripe retries), 200 on ignored events', async () => {
-    const { h } = setup({ message: 'db down' });
-    const body = JSON.stringify({ type: 'customer.subscription.updated', data: { object: { id: 's', customer: 'c', status: 'active' } } });
-    expect((await h(post(body, 't=1,v1=00'))).status).toBe(400);
-    expect((await h(new Request('https://x', { method: 'GET' }))).status).toBe(405);
-    expect((await h(post(body, await signed(body)))).status).toBe(500);
-    const ignored = '{"type":"invoice.paid","data":{"object":{}}}';
-    expect(await (await setup().h(post(ignored, await signed(ignored)))).text()).toBe('ignored');
+  it('400 on bad signature, 405 on GET, 500 on DB error (so Dodo retries), 200 on ignored events', async () => {
+    const body = evt('subscription.active', { ...sub, metadata: { user_id: UID } });
+    expect((await setup().h(await post(body, new Headers({ 'webhook-id': 'x', 'webhook-timestamp': '1', 'webhook-signature': 'v1,00' })))).status).toBe(400);
+    expect((await setup().h(new Request('https://x', { method: 'GET' }))).status).toBe(405);
+    expect((await setup({ error: { message: 'db down' } }).h(await post(body))).status).toBe(500);
+    expect(await (await setup().h(await post(evt('dispute.opened', {})))).text()).toBe('ignored');
+  });
+  it('a later Pro event can never downgrade an existing Lifetime plan, but Lifetime can still be recorded', async () => {
+    const { h, calls } = setup({ status: 'lifetime' });
+    expect(await (await h(await post(evt('subscription.active', { ...sub, metadata: { user_id: UID } })))).text()).toBe('ignored: already lifetime');
+    await h(await post(evt('payment.succeeded', { metadata: { user_id: UID, plan: 'lifetime' } })));
+    expect(calls).toEqual(['user:lifetime']);
+  });
+  it('a full refund revokes paid access; a partial refund does not', async () => {
+    expect(refundTarget({ type: 'refund.succeeded', data: { metadata: { user_id: UID } } })).toEqual({ user_id: UID, customer: undefined });
+    expect(refundTarget({ type: 'refund.succeeded', data: { customer: { customer_id: 'cus_9' } } })).toEqual({ user_id: undefined, customer: 'cus_9' });
+    expect(refundTarget({ type: 'refund.succeeded', data: { is_partial: true, customer: { customer_id: 'cus_9' } } })).toBeNull();
+    expect(refundTarget({ type: 'refund.succeeded', data: {} })).toBeNull();
+    const { h, calls } = setup();
+    await h(await post(evt('refund.succeeded', { customer: { customer_id: 'cus_9' } })));
+    await h(await post(evt('refund.succeeded', { is_partial: true, customer: { customer_id: 'cus_9' } })));
+    expect(calls).toEqual(['revoke:cus_9']);
+  });
+});
+
+describe('checkout handler', () => {
+  const make = (userFor: (t: string) => Promise<{ id: string; email?: string } | null>, reply: { ok: boolean; body: object } = { ok: true, body: { checkout_url: 'https://checkout.dodopayments.com/s/1' } }) => {
+    const sent: { url: string; init: RequestInit }[] = [];
+    const h = makeCheckoutHandler({
+      userFor, apiKey: 'k', apiBase: 'https://test.dodopayments.com', products: { yearly: 'pdt_y', lifetime: 'pdt_l' }, returnUrl: 'https://x/app/?upgraded=1',
+      fetch: (async (url: string, init: RequestInit) => { sent.push({ url, init }); return new Response(JSON.stringify(reply.body), { status: reply.ok ? 200 : 500 }); }) as typeof fetch,
+    });
+    return { h, sent };
+  };
+  const req = (plan: unknown, auth: string | null = 'Bearer tok') => new Request('https://x/api/checkout', { method: 'POST', body: JSON.stringify({ plan }), headers: auth ? { authorization: auth } : {} });
+  it('creates a checkout for the signed-in user, tagging the purchase with their id and plan', async () => {
+    const { h, sent } = make(async () => ({ id: UID, email: 'a@b.co' }));
+    const res = await h(req('lifetime'));
+    expect(await res.json()).toEqual({ url: 'https://checkout.dodopayments.com/s/1' });
+    const body = JSON.parse(String(sent[0].init.body));
+    expect(sent[0].url).toBe('https://test.dodopayments.com/checkouts');
+    expect(body).toMatchObject({ product_cart: [{ product_id: 'pdt_l', quantity: 1 }], metadata: { user_id: UID, plan: 'lifetime' }, customer: { email: 'a@b.co' } });
+  });
+  it('401 without a valid session, 400 for an unknown plan (never reaches Dodo), 502 when Dodo fails', async () => {
+    const anon = make(async () => null);
+    expect((await anon.h(req('yearly'))).status).toBe(401);
+    expect((await anon.h(req('yearly', null))).status).toBe(401);
+    const ok = make(async () => ({ id: UID }));
+    expect((await ok.h(req('free'))).status).toBe(400);
+    expect(ok.sent).toHaveLength(0);
+    expect((await make(async () => ({ id: UID }), { ok: false, body: { message: 'boom' } }).h(req('yearly'))).status).toBe(502);
   });
 });
 
@@ -234,46 +282,5 @@ describe('waitlist', () => {
     expect((await h(new Request('https://v.example/api/waitlist'))).status).toBe(405);
     const flood = await h(form({ email: 'a@example.com' }));
     expect([flood.status, flood.headers.get('retry-after'), rows.length]).toEqual([429, '3600', 0]);
-  });
-});
-
-describe('billing safety rails', () => {
-  const evt = (type: string, object: object, livemode = true) => JSON.stringify({ type, livemode, data: { object } });
-  const post2 = async (h: (r: Request) => Promise<Response>, body: string) => h(new Request('https://x/api/stripe-webhook', { method: 'POST', body, headers: { 'stripe-signature': await signed(body) } }));
-  const setup2 = (over: { acceptTest?: boolean; status?: string | null } = {}) => {
-    const calls: string[] = [];
-    const h = makeBillingHandler({
-      secret: SECRET, acceptTest: over.acceptTest,
-      currentStatus: async () => over.status ?? null,
-      upsertByUser: async (r) => { calls.push(`upsert:${r.status}`); return { error: null }; },
-      updateByCustomer: async (r) => { calls.push(`update:${r.status}`); return { error: null }; },
-      revokeByCustomer: async (c) => { calls.push(`revoke:${c}`); return { error: null }; },
-    });
-    return { h, calls };
-  };
-  const checkout = (mode: string, livemode = true) => evt('checkout.session.completed', { mode, client_reference_id: UID, customer: mode === 'payment' ? null : 'cus_1', payment_status: 'paid' }, livemode);
-
-  it('test-mode events are ignored unless explicitly accepted (a leftover test link can never grant real Pro)', async () => {
-    const live = setup2();
-    expect(await (await post2(live.h, checkout('payment', false))).text()).toBe('ignored: test-mode event');
-    expect(live.calls).toEqual([]);
-    const test = setup2({ acceptTest: true });
-    await post2(test.h, checkout('payment', false));
-    expect(test.calls).toEqual(['upsert:lifetime']);
-  });
-  it('a later Pro purchase can never downgrade an existing Lifetime plan', async () => {
-    const { h, calls } = setup2({ status: 'lifetime' });
-    expect(await (await post2(h, checkout('subscription'))).text()).toBe('ignored: already lifetime');
-    await post2(h, checkout('payment'));
-    expect(calls).toEqual(['upsert:lifetime']); // re-buying Lifetime is still recorded
-  });
-  it('a full refund revokes paid access; a partial refund does not', async () => {
-    expect(refundedCustomer({ type: 'charge.refunded', data: { object: { refunded: true, customer: 'cus_9' } } })).toBe('cus_9');
-    expect(refundedCustomer({ type: 'charge.refunded', data: { object: { refunded: false, customer: 'cus_9' } } })).toBeNull();
-    expect(refundedCustomer({ type: 'charge.refunded', data: { object: { refunded: true, customer: null } } })).toBeNull();
-    const { h, calls } = setup2();
-    await post2(h, evt('charge.refunded', { refunded: true, customer: 'cus_9' }));
-    await post2(h, evt('charge.refunded', { refunded: false, customer: 'cus_9' }));
-    expect(calls).toEqual(['revoke:cus_9']);
   });
 });

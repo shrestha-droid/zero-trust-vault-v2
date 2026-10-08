@@ -24,7 +24,7 @@ export function render(template: string, cur: string, p: Currency, flags: Flags 
     DEN_YEARLY: plain(p.yearly), DEN_LIFETIME: plain(p.lifetime),
     AMOUNT_YEARLY: String(p.yearly), AMOUNT_LIFETIME: String(p.lifetime),
     SERIAL_YEARLY: serial(p.yearly), SERIAL_LIFETIME: serial(p.lifetime),
-    // Until Stripe is configured, buy buttons collect a waitlist email instead of dead-ending in the app.
+    // Until payments are enabled, buy buttons collect a waitlist email instead of dead-ending in the app.
     PRO_HREF: flags.payments ? '/app/#settings' : '#waitlist', PRO_LABEL: flags.payments ? 'Upgrade in the app' : 'Join the waitlist',
     LIFE_HREF: flags.payments ? '/app/#settings' : '#waitlist', LIFE_LABEL: flags.payments ? 'Get Lifetime' : 'Join the waitlist',
     LEGACY_HREF: flags.legacy ? '/app/#legacy' : '#waitlist', LEGACY_LABEL: flags.legacy ? 'Set up Legacy' : 'Get early access',

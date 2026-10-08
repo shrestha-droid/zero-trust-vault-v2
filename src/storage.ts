@@ -146,15 +146,14 @@ export const cloud = {
   },
 };
 
-// ---------- Plans (written only by the server's Stripe webhook; read here) ----------
+// ---------- Plans (written only by the server's billing webhook; read here) ----------
 export interface Plan { pro: boolean; status: string; periodEnd: string | null }
 const FREE: Plan = { pro: false, status: 'free', periodEnd: null };
 
 export const billing = {
-  checkoutYearly: import.meta.env.VITE_CHECKOUT_URL_YEARLY as string | undefined,
-  checkoutLifetime: import.meta.env.VITE_CHECKOUT_URL_LIFETIME as string | undefined,
+  /** Set at build time (VITE_PAYMENTS=1) once the server has Dodo keys. Needs the hosted site: the offline copy can't reach /api. */
+  get configured() { return cloudConfigured && import.meta.env.VITE_PAYMENTS === '1' && /^https?:$/.test(location.protocol); },
   portal: import.meta.env.VITE_BILLING_PORTAL_URL as string | undefined,
-  get configured() { return cloudConfigured && Boolean(this.checkoutYearly || this.checkoutLifetime); },
   async plan(): Promise<Plan> {
     if (!(await cloud.session())) return FREE;
     const { data, error } = await sb().rpc('is_pro');
@@ -162,14 +161,18 @@ export const billing = {
     const { data: row } = await sb().from('entitlements').select('status, current_period_end').maybeSingle();
     return { pro: Boolean(data), status: (row?.status as string) ?? 'free', periodEnd: (row?.current_period_end as string) ?? null };
   },
-  /** Stripe Payment Link carrying the user id, so the webhook can attribute the purchase. */
-  async checkoutUrl(link: string): Promise<string> {
+  /** Asks the server for a Dodo checkout that carries the user id, so the webhook can attribute the purchase. */
+  async checkoutUrl(plan: 'yearly' | 'lifetime'): Promise<string> {
     const s = await cloud.session();
     if (!s) throw new VaultError('Sign in first, so the purchase is attached to your account.');
-    const u = new URL(link);
-    u.searchParams.set('client_reference_id', s.user.id);
-    if (s.user.email) u.searchParams.set('prefilled_email', s.user.email);
-    return u.toString();
+    const res = await fetch('/api/checkout', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${s.access_token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ plan }),
+    });
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok || typeof out.url !== 'string') throw new VaultError(out.error ?? 'Checkout is unavailable right now.');
+    return out.url;
   },
 };
 

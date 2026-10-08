@@ -1507,8 +1507,8 @@ async function refreshPlan(): Promise<Plan> {
   return plan;
 }
 
-function checkoutButton(label: string, link: string, cls: string) {
-  return button(label, 'star', async () => { try { location.href = await billing.checkoutUrl(link); } catch (e) { fail(e); } }, cls);
+function checkoutButton(label: string, plan: 'yearly' | 'lifetime', cls: string) {
+  return button(label, 'star', async () => { try { location.href = await billing.checkoutUrl(plan); } catch (e) { fail(e); } }, cls);
 }
 
 async function renderPlanCard() {
@@ -1528,15 +1528,14 @@ async function renderPlanCard() {
   const actions: HTMLElement[] = [];
   if (billing.configured && !session) actions.push(button('Sign in', 'user', () => openAuth(), 'btn primary'));
   else if (billing.configured && !plan.pro) {
-    if (billing.checkoutYearly) actions.push(checkoutButton('Upgrade to Pro', billing.checkoutYearly, 'btn primary'));
-    if (billing.checkoutLifetime) actions.push(checkoutButton('Get Lifetime', billing.checkoutLifetime, 'btn ghost'));
+    actions.push(checkoutButton('Upgrade to Pro', 'yearly', 'btn primary'), checkoutButton('Get Lifetime', 'lifetime', 'btn ghost'));
   } else if (plan.pro && !lifetime && billing.portal) {
     actions.push(h('a', { class: 'btn ghost', href: billing.portal, target: '_blank', rel: 'noopener noreferrer' }, icon('star'), 'Manage billing'));
   }
   $('plan-actions').replaceChildren(...actions);
 }
 
-/** Back from Stripe: the webhook may land a few seconds after the redirect. */
+/** Back from checkout: the webhook may land a few seconds after the redirect. */
 async function awaitUpgrade() {
   toast('Payment received. Activating Pro…');
   for (let i = 0; i < 15; i++) {
@@ -1730,7 +1729,9 @@ meter();
 updateNet();
 refreshPasskeyMethod();
 setTarget(null);
-const initial = location.hash.slice(1);
+const paidReturn = /[?&]upgraded=1/.test(location.search);
+if (paidReturn) history.replaceState(null, '', location.pathname);
+const initial = paidReturn ? 'upgraded' : location.hash.slice(1);
 if (initial === 'checkin=ok') { show('legacy'); toast("You're checked in. Thanks!"); }
 else if (initial === 'checkin=expired') { show('legacy'); toast('That check-in link has expired. Press "I\'m still here" below instead.', 'error'); }
 else if (initial === 'upgraded') { show('settings'); void awaitUpgrade(); }
