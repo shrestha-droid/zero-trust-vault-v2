@@ -39,10 +39,11 @@ Smallest money-making launch: Vercel + Google Drive + Supabase Auth, then add Do
    Drop every policy on `vault-store` except the three named `vault owner can …`. Then, under **Storage → vault-store**, delete the old v1 files at the bucket root (`*.enc`, `*.meta`). Those records contain their own shards and can be decrypted by anyone who reads them.
 3. **Authentication → URL Configuration:** set *Site URL* to `https://YOUR-DOMAIN/app/`, and add `https://YOUR-DOMAIN/app/` under *Redirect URLs*.
    **Authentication → Providers:**
-   - **Email:** on (powers "Email me a sign-in link").
+   - **Email:** on (powers "Continue with email": a code and a link). Passwords are not used.
    - **Google:** paste the client ID/secret from step 0.
    - **Apple:** needs a paid Apple Developer account ($99/year): create a Services ID and a Sign in with Apple key, then follow Supabase's Apple guide. Skip it at first if you like; just leave `apple` out of `VITE_AUTH_PROVIDERS`.
    - **GitHub** (optional): GitHub → Settings → Developer settings → OAuth Apps, with callback `https://YOUR-PROJECT.supabase.co/auth/v1/callback`.
+   **Authentication → Emails → Templates → Magic link** (and **Confirm signup**): add the line `<p>Your sign-in code: <strong>{{ .Token }}</strong></p>` above the link. The app asks for this 6-digit code first, because an emailed link only works in the browser that asked for it (mail apps open links in their own browser). The code works anywhere. Keep *Email OTP length* at 6.
    **Authentication → Emails → SMTP Settings:** use Resend's SMTP. Supabase's built-in email only sends a few messages an hour, which isn't enough for real users.
 4. **Project Settings → API:** copy the *Project URL*, the *anon* key and the *service_role* key. The service_role key bypasses all security, so it only ever goes into Vercel's server variables.
 
@@ -108,7 +109,7 @@ Add and verify your domain (DNS records), create an API key, and choose a sender
 ## 5. Smoke test (Dodo test mode)
 
 1. Open `/`, then `/app/`. Seal and open a vault locally.
-2. Press **Sign in** (top right) → Continue with Google → you land back signed in. Try "Email me a sign-in link" too.
+2. Press **Sign in** (top right) → Continue with Google → you land back signed in. Then sign out and try "Continue with email": enter the code from the email.
 3. Seal a vault with destination **Google Drive** → approve Google's popup → check your Drive for the "Zero-Trust Vault" folder → open the vault again from the Vault tab → Google Drive.
 4. Upgrade with Dodo's test card. You land back on `/app/`, and the **PRO** badge appears within seconds. If it doesn't, check Dodo → Developer → Webhooks → delivery logs.
 5. Seal a vault to **Cloud**, then create a Legacy plan with yourself as the trustee and a 30-day interval.

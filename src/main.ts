@@ -1,5 +1,6 @@
 import jsQR from 'jsqr';
 import qrcode from 'qrcode-generator';
+import { cleanCode, isEmail } from './auth';
 import * as direct from './crypto';
 import {
   describeSlots, forgedShards, fromB64, fromB64url, MAX_BYTES, parseShard, parseVaultFile, rand, shardTokens, toB64, toB64url, VaultError,
@@ -1310,24 +1311,32 @@ function brand(viewBox: string, paths: [string, string][]): SVGSVGElement {
 const authDialog = $<HTMLDialogElement>('auth-dialog');
 const authForm = $<HTMLFormElement>('auth-form');
 const email = $<HTMLInputElement>('auth-email');
-const password = $<HTMLInputElement>('auth-password');
-let passwordMode = false;
+const codeForm = $<HTMLFormElement>('auth-code-form');
+const codeInput = $<HTMLInputElement>('auth-code');
+const RESEND_SECONDS = 60; // Supabase refuses a second email to the same address inside ~60 s
+let resendTimer = 0;
 
-function setAuthMode(pw: boolean) {
-  passwordMode = pw;
-  $('auth-password-field').hidden = !pw;
-  $('auth-password-actions').hidden = !pw;
-  $('auth-submit').lastElementChild!.textContent = pw ? 'Sign in' : 'Email me a sign-in link';
-  $('auth-mode').textContent = pw ? 'Email me a link instead' : 'Use a password instead';
+function showCodeStep(to: string) {
+  $('auth-sent-to').textContent = to;
+  authForm.hidden = true;
+  $('auth-sent').hidden = false;
+  codeInput.value = '';
+  codeInput.focus();
+  const btn = $<HTMLButtonElement>('auth-resend');
+  let left = RESEND_SECONDS;
+  clearInterval(resendTimer);
+  const tick = () => { btn.disabled = left > 0; btn.textContent = left > 0 ? `Send a new code (${left}s)` : 'Send a new code'; if (left-- <= 0) clearInterval(resendTimer); };
+  tick();
+  resendTimer = window.setInterval(tick, 1000);
 }
 
 /** The one sign-in screen, reachable from the header, Settings, Legacy, plans and cloud saves. */
 function openAuth() {
   if (!cloudConfigured) return toast("Accounts aren't set up for this build yet.", 'error');
   if (airGap.active) return toast('Air-gap is on. Turn it off in Settings and reload to sign in.', 'error');
-  setAuthMode(false);
   authForm.hidden = false;
   $('auth-sent').hidden = true;
+  clearInterval(resendTimer);
   $('auth-providers').replaceChildren(...cloud.providers.map((p) => {
     const meta = PROVIDERS[p] ?? { label: p[0].toUpperCase() + p.slice(1), icon: () => icon('user') };
     return h('button', {
@@ -1343,40 +1352,34 @@ function openAuth() {
   if (!authDialog.open) authDialog.showModal();
 }
 $('auth-close').addEventListener('click', () => authDialog.close());
-$('auth-mode').addEventListener('click', () => setAuthMode(!passwordMode));
-$('auth-back').addEventListener('click', () => { $('auth-sent').hidden = true; authForm.hidden = false; email.focus(); });
+$('auth-back').addEventListener('click', () => { clearInterval(resendTimer); $('auth-sent').hidden = true; authForm.hidden = false; email.focus(); });
 authForm.addEventListener('submit', (e) => {
   e.preventDefault();
-  if (!email.checkValidity() || !email.value) return email.reportValidity();
-  void busy($<HTMLButtonElement>('auth-submit'), passwordMode ? 'Signing in…' : 'Sending…', async () => {
-    if (passwordMode) {
-      await cloud.signIn(email.value, password.value);
-      password.value = '';
-      authDialog.close();
-      toast('Signed in.');
-    } else {
-      await cloud.sendLink(email.value);
-      $('auth-sent-to').textContent = email.value;
-      authForm.hidden = true;
-      $('auth-sent').hidden = false;
-    }
-    await refreshAccount();
+  if (!isEmail(email.value)) { toast('Enter a valid email address.', 'error'); return email.focus(); }
+  void busy($<HTMLButtonElement>('auth-submit'), 'Sending…', async () => {
+    await cloud.sendCode(email.value.trim());
+    showCodeStep(email.value.trim());
   });
 });
-$('auth-signup').addEventListener('click', (e) => {
-  if (!email.checkValidity() || !email.value) return email.reportValidity();
-  if (password.value.length < 10) { password.focus(); return toast('Use a password of at least 10 characters.', 'error'); }
-  void busy(e.currentTarget as HTMLButtonElement, 'Creating…', async () => {
-    const signedIn = await cloud.signUp(email.value, password.value);
-    password.value = '';
-    if (signedIn) { authDialog.close(); toast('Account created. You are signed in.'); }
-    else { $('auth-sent-to').textContent = email.value; authForm.hidden = true; $('auth-sent').hidden = false; }
-    await refreshAccount();
+$('auth-resend').addEventListener('click', (e) => busy(e.currentTarget as HTMLButtonElement, 'Sending…', async () => {
+  const to = $('auth-sent-to').textContent ?? '';
+  await cloud.sendCode(to);
+  showCodeStep(to);
+  toast('New code sent.');
+}));
+codeForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const code = cleanCode(codeInput.value);
+  if (!code) { toast('Enter the 6-digit code from the email.', 'error'); return codeInput.focus(); }
+  void busy($<HTMLButtonElement>('auth-verify'), 'Verifying…', async () => {
+    await cloud.verifyCode($('auth-sent-to').textContent ?? '', code);
+    // onChange(SIGNED_IN) closes the dialog and refreshes the account
+    toast('Signed in.');
   });
 });
 
 async function refreshAccount() {
-  const reason = !cloudConfigured ? "Accounts aren't set up for this build. Everything else works without one."
+  const reason = !cloudConfigured ? (location.protocol === 'file:' ? 'Accounts need the website. This offline copy never connects to anything.' : "Accounts aren't set up for this build. Everything else works without one.")
     : airGap.active ? 'Unavailable while air-gap is on.' : '';
   $('account-off').hidden = !reason;
   $('account-off-text').textContent = reason;
@@ -1397,6 +1400,15 @@ async function refreshAccount() {
 }
 $('account-btn').addEventListener('click', async () => ((await cloud.session().catch(() => null)) ? show('settings') : openAuth()));
 $('account-signin').addEventListener('click', () => openAuth());
+$('account-delete').addEventListener('click', async (e) => {
+  const btn = e.currentTarget as HTMLButtonElement; // currentTarget is null after the first await
+  if (!(await confirmDialog('Delete your account?', 'This permanently deletes your account, every vault stored in the Zero-Trust Cloud, and your Legacy plan. Vaults on your devices or in Google Drive are not touched. If you have a Pro subscription, cancel it first (link in Dodo\'s receipt email). This cannot be undone.', 'Delete account', true))) return;
+  await busy(btn, 'Deleting…', async () => {
+    await cloud.deleteAccount();
+    toast('Your account has been deleted.');
+    await refreshAccount(); void refreshDest(); void refreshPlan();
+  });
+});
 $('auth-signout').addEventListener('click', (e) => busy(e.currentTarget as HTMLButtonElement, 'Signing out…', async () => {
   await cloud.signOut();
   toast('Signed out.');

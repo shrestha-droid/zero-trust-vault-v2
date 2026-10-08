@@ -1,4 +1,5 @@
 import { createClient, type Session, type SupabaseClient } from '@supabase/supabase-js';
+import { friendlyAuthError } from './auth';
 import { isId, parseVaultFile, VaultError, type VaultFile } from './crypto';
 import { authUrl, makeDrive, parseTokenHash, type DriveToken } from './gdrive';
 
@@ -67,7 +68,8 @@ export const local = {
 const URL_ = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 const BUCKET = 'vault-store';
-export const cloudConfigured = Boolean(URL_ && KEY);
+// Sign-in redirects and emailed links need the hosted site; the downloaded offline file (file://) can't complete them.
+export const cloudConfigured = Boolean(URL_ && KEY) && typeof location !== 'undefined' && /^https?:$/.test(location.protocol);
 let client: SupabaseClient | null = null;
 
 function sb(): SupabaseClient {
@@ -86,6 +88,7 @@ async function userPath(id?: string): Promise<string> {
 }
 
 const raise = (error: { message: string } | null) => { if (error) throw new VaultError(error.message); };
+const raiseAuth = (error: { message: string } | null) => raise(error && { message: friendlyAuthError(error.message) });
 
 export interface CloudEntry { id: string; created: string; size: number }
 
@@ -103,20 +106,23 @@ export const cloud = {
   /** Full-page redirect to Google/Apple/…; supabase-js completes the sign-in when the app loads again. */
   async signInWith(provider: string) {
     const { error } = await sb().auth.signInWithOAuth({ provider: provider as 'google', options: { redirectTo: appUrl() } });
-    raise(error);
+    raiseAuth(error);
   },
-  /** Passwordless: emails a one-click sign-in link (also creates the account on first use). */
-  async sendLink(email: string) {
-    raise((await sb().auth.signInWithOtp({ email, options: { emailRedirectTo: appUrl(), shouldCreateUser: true } })).error);
+  /** Passwordless: emails a sign-in link and a one-time code (creates the account on first use). */
+  async sendCode(email: string) {
+    raiseAuth((await sb().auth.signInWithOtp({ email, options: { emailRedirectTo: appUrl(), shouldCreateUser: true } })).error);
   },
-  async signIn(email: string, password: string) {
-    raise((await sb().auth.signInWithPassword({ email, password })).error);
+  /** The code works on any device or browser, unlike the link (PKCE ties the link to the browser that asked). */
+  async verifyCode(email: string, token: string) {
+    raiseAuth((await sb().auth.verifyOtp({ email, token, type: 'email' })).error);
   },
-  /** Returns false when the project requires email confirmation first. */
-  async signUp(email: string, password: string): Promise<boolean> {
-    const { data, error } = await sb().auth.signUp({ email, password });
-    raise(error);
-    return Boolean(data.session);
+  /** Deletes the account, its cloud vaults and Legacy plan on the server. The caller must be signed in. */
+  async deleteAccount() {
+    const s = await this.session();
+    if (!s) throw new VaultError('Sign in first.');
+    const res = await fetch('/api/delete-account', { method: 'POST', headers: { authorization: `Bearer ${s.access_token}` } });
+    if (!res.ok) throw new VaultError(((await res.json().catch(() => ({}))) as { error?: string }).error ?? 'Could not delete the account.');
+    await sb().auth.signOut({ scope: 'local' }).catch(() => undefined);
   },
   async signOut() { raise((await sb().auth.signOut()).error); },
   async list(): Promise<CloudEntry[]> {

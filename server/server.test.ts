@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { makeDeleteAccountHandler } from './account.js';
 import { makeWaitlistHandler } from './waitlist.js';
 import { entitlementFrom, makeBillingHandler, makeCheckoutHandler, refundTarget, signStandard, verifyDodo, type EntitlementRow } from './billing.js';
 import {
@@ -282,5 +283,44 @@ describe('waitlist', () => {
     expect((await h(new Request('https://v.example/api/waitlist'))).status).toBe(405);
     const flood = await h(form({ email: 'a@example.com' }));
     expect([flood.status, flood.headers.get('retry-after'), rows.length]).toEqual([429, '3600', 0]);
+  });
+});
+
+describe('delete account', () => {
+  const make = (over: { user?: { id: string; email?: string } | null; sub?: boolean; failAt?: string } = {}) => {
+    const log: string[] = [];
+    const step = (name: string) => async (...a: string[]) => { log.push(`${name}:${a[0]}`); if (over.failAt === name) throw new Error('boom'); };
+    const h = makeDeleteAccountHandler({
+      userFor: async () => (over.user === undefined ? { id: UID, email: 'Ana@Example.com' } : over.user),
+      hasActiveSubscription: async () => over.sub ?? false,
+      removeVaults: step('vaults'), removeWaitlist: step('waitlist'), deleteUser: step('user'),
+    });
+    return { h, log };
+  };
+  const req = (auth: string | null = 'Bearer t', method = 'POST') => new Request('https://x/api/delete-account', { method, headers: auth ? { authorization: auth } : {} });
+
+  it('deletes vaults, then the waitlist row (lower-cased), then the account', async () => {
+    const { h, log } = make();
+    expect((await h(req())).status).toBe(200);
+    expect(log).toEqual([`vaults:${UID}`, 'waitlist:ana@example.com', `user:${UID}`]);
+  });
+  it('401 without a valid session and 405 for GET: nothing is touched', async () => {
+    const anon = make({ user: null });
+    expect((await anon.h(req())).status).toBe(401);
+    expect((await anon.h(req(null))).status).toBe(401);
+    expect((await anon.h(req('Bearer t', 'GET'))).status).toBe(405);
+    expect(anon.log).toEqual([]);
+  });
+  it('refuses while a subscription is still billing, and deletes nothing', async () => {
+    const { h, log } = make({ sub: true });
+    const res = await h(req());
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toMatch(/Cancel it first/);
+    expect(log).toEqual([]);
+  });
+  it('a failure part-way returns 500 and never deletes the account itself (so a retry can finish)', async () => {
+    const { h, log } = make({ failAt: 'vaults' });
+    expect((await h(req())).status).toBe(500);
+    expect(log.some((l) => l.startsWith('user:'))).toBe(false);
   });
 });
