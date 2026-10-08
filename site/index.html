@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; font-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; font-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'self'">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="referrer" content="no-referrer">
@@ -29,7 +29,7 @@
     <div class="wrap">
       <a class="logo" href="/" aria-label="Zero-Trust Vault home">
         <svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1"><circle cx="16" cy="16" r="15"/><circle cx="22" cy="16" r="5.6"/><circle cx="19" cy="21.2" r="5.6"/><circle cx="13" cy="21.2" r="5.6"/><circle cx="10" cy="16" r="5.6"/><circle cx="13" cy="10.8" r="5.6"/><circle cx="19" cy="10.8" r="5.6"/></g><circle class="dot" cx="16" cy="16" r="2.4"/></svg>
-        <span>Zero-Trust Vault</span>
+        <span>Zero-Trust Vault</span><span class="beta">Beta</span>
       </a>
       <nav aria-label="Sections"><a href="#articles">Method</a><a href="#legacy">Legacy</a><a href="/security">Security</a><a href="#notes">Pricing</a><a href="#qa">Questions</a></nav>
       <a class="nav-signin" href="/app/#signin">Sign in</a>
@@ -120,10 +120,10 @@
     <section class="legacy" id="legacy">
       <div class="wrap legacy-grid">
         <div class="reveal">
-          <p class="label">Legacy · Pro</p>
+          <p class="label">Legacy · %LEGACY_TAG%</p>
           <h2>Your card expires when you do. <em>Legacy doesn't.</em></h2>
           <p class="lede">Name the people. Keep living. If you ever go quiet, they receive your instructions, your encrypted vaults and one escrowed coupon, while we still hold nothing that opens anything.</p>
-          <a class="btn lg light" href="/app/#legacy">Set up Legacy</a>
+          <a class="btn lg light" href="%LEGACY_HREF%">%LEGACY_LABEL%</a>
           <p class="fine-print">Be clear about what depends on us: your vaults never do, but Legacy's automatic emails do, so they need our service running on release day. Give your trustees a printed recovery kit and the offline app as a fallback. Legacy is a technical tool, not a will or legal advice: check what your trustees may lawfully do where you live. <a href="/security">Details</a></p>
         </div>
         <article class="envelope reveal">
@@ -197,7 +197,7 @@
             <div class="note-face"><span class="label">Pro · yearly</span><strong>%PRICE_YEARLY%</strong><span class="serial">Nº P-%SERIAL_YEARLY%</span></div>
           </div>
           <ul><li>Everything in Free</li><li>Unlimited encrypted cloud vaults</li><li>Legacy: the dead man's switch</li><li>Up to 10 trustees and an escrow coupon</li><li>Releases even if billing lapses</li></ul>
-          <a class="btn block" href="/app/#settings">Upgrade in the app</a>
+          <a class="btn block" href="%PRO_HREF%">%PRO_LABEL%</a>
         </article>
         <article class="note-col reveal">
           <div class="note">
@@ -206,13 +206,13 @@
             <div class="note-face"><span class="label">Lifetime</span><strong>%PRICE_LIFETIME%</strong><span class="serial">Nº L-%SERIAL_LIFETIME%</span></div>
           </div>
           <ul><li>Everything in Pro, forever</li><li>No renewals to forget</li><li>Made for estate planning</li></ul>
-          <a class="btn ghost block" href="/app/#settings">Get Lifetime</a>
+          <a class="btn ghost block" href="%LIFE_HREF%">%LIFE_LABEL%</a>
         </article>
       </div>
       <p class="fine">Prices in %CURRENCY%. Secure checkout by Stripe. Cancel anytime; your vaults keep working on Free.</p>
     </section>
 
-    <section class="block wrap qa-grid" id="qa">
+%WAITLIST%    <section class="block wrap qa-grid" id="qa">
       <header class="head">
         <p class="label">Questions &amp; answers</p>
         <h2>Questions <em>worth asking.</em></h2>

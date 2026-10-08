@@ -43,7 +43,7 @@ beforeAll(async () => {
     alter default privileges in schema public grant all on tables to anon, authenticated; -- Supabase's default
     insert into auth.users values ('${A}'), ('${B}');
   `);
-  for (const f of ['0001_vault_store.sql', '0002_billing_legacy.sql']) await db.exec(readFileSync(new URL(`./migrations/${f}`, import.meta.url), 'utf8'));
+  for (const f of ['0001_vault_store.sql', '0002_billing_legacy.sql', '0003_waitlist.sql']) await db.exec(readFileSync(new URL(`./migrations/${f}`, import.meta.url), 'utf8'));
 }, 60_000);
 
 describe('cloud storage', () => {
@@ -102,5 +102,20 @@ describe('legacy plans', () => {
     expect((await as(null, 'select public.legacy_checkin()')).error).toBeDefined();
     await expect(service(`insert into public.legacy_plans (user_id, trustees) values ($1, '[]')`, [B])).rejects.toThrow(/check/);
     expect((await as(A, 'delete from public.legacy_plans returning 1')).rows).toHaveLength(1);
+  });
+});
+
+describe('waitlist', () => {
+  it('browser users can neither read nor write it; the server (service role) can; constraints hold', async () => {
+    await service(`insert into public.waitlist (email, source, country) values ('first@example.com', 'hero', 'IN')`);
+    for (const who of [null, A]) {
+      expect((await as(who, 'select * from public.waitlist')).error).toMatch(/permission denied/);
+      expect((await as(who, `insert into public.waitlist (email) values ('sneaky@example.com')`)).error).toMatch(/permission denied/);
+      expect((await as(who, 'delete from public.waitlist')).error).toMatch(/permission denied/);
+    }
+    await expect(service(`insert into public.waitlist (email) values ('first@example.com')`)).rejects.toThrow(/duplicate/);
+    for (const bad of [`'Upper@Example.com'`, `'no-at-sign'`, `'a b@c.co'`, `'<x>@y.co'`]) await expect(service(`insert into public.waitlist (email) values (${bad})`)).rejects.toThrow(/check/);
+    await expect(service(`insert into public.waitlist (email, country) values ('c@example.com', 'india')`)).rejects.toThrow(/check/);
+    expect((await service('select count(*)::int as n from public.waitlist')).rows[0]).toEqual({ n: 1 });
   });
 });

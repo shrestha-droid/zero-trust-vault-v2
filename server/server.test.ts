@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { makeWaitlistHandler } from './waitlist.js';
 import { entitlementFrom, hmacHex, makeBillingHandler, verifyStripe, type EntitlementRow } from './billing.js';
 import {
   DAY, decide, esc, sendEmail, makeCheckinHandler, makeCheckinToken, makeTickHandler, releaseEmail, runTick, verifyCheckinToken,
@@ -189,4 +190,43 @@ it('sendEmail retries 429/5xx, gives up on 4xx, never throws', async () => {
   expect(await sendEmail(email, 'k', 'f', seq([500, 500, 500, 500]), noSleep)).toBe(false);
   expect(await sendEmail(email, 'k', 'f', (async () => { throw new Error('dns'); }) as unknown as typeof fetch, noSleep)).toBe(false);
   expect(await sendEmail(email, '', 'f')).toBe(false);
+});
+
+describe('waitlist', () => {
+  const form = (fields: Record<string, string>, headers: Record<string, string> = {}) =>
+    new Request('https://v.example/api/waitlist', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded', origin: 'https://v.example', ...headers }, body: new URLSearchParams(fields).toString() });
+  const setup = (over: { error?: { message: string; code?: string }; recent?: number } = {}) => {
+    const rows: { email: string; source: string; country: string | null }[] = [];
+    const h = makeWaitlistHandler({ siteUrl: 'https://v.example', insert: async (r) => { rows.push(r); return { error: over.error ?? null }; }, recent: async () => over.recent ?? 0 });
+    return { h, rows };
+  };
+
+  it('stores a normalised email with source and country, then redirects to #joined', async () => {
+    const { h, rows } = setup();
+    const r = await h(form({ email: '  Ana@Example.COM ', source: 'pricing' }, { 'x-vercel-ip-country': 'in' }));
+    expect([r.status, r.headers.get('location')]).toEqual([303, 'https://v.example/#joined']);
+    expect(rows).toEqual([{ email: 'ana@example.com', source: 'pricing', country: 'IN' }]);
+  });
+  it('rejects bad emails, unknown sources fall back, junk country becomes null', async () => {
+    const { h, rows } = setup();
+    for (const bad of ['', 'nope', 'a@b', 'a b@c.co', '<x>@y.co', 'a@b.co'.padEnd(300, 'z')]) expect((await h(form({ email: bad }))).headers.get('location')).toBe('https://v.example/#invalid');
+    await h(form({ email: 'ok@example.com', source: '<script>' }, { 'x-vercel-ip-country': 'XXL' }));
+    expect(rows).toEqual([{ email: 'ok@example.com', source: 'site', country: null }]);
+  });
+  it('honeypot: bots look successful but nothing is stored', async () => {
+    const { h, rows } = setup();
+    expect((await h(form({ email: 'bot@example.com', website: 'http://spam' }))).headers.get('location')).toBe('https://v.example/#joined');
+    expect(rows).toEqual([]);
+  });
+  it('a duplicate signup looks identical (no email enumeration); real DB errors surface', async () => {
+    expect((await setup({ error: { message: 'dup', code: '23505' } }).h(form({ email: 'a@example.com' }))).headers.get('location')).toBe('https://v.example/#joined');
+    expect((await setup({ error: { message: 'down' } }).h(form({ email: 'a@example.com' }))).status).toBe(500);
+  });
+  it('blocks other origins, wrong methods, and floods', async () => {
+    const { h, rows } = setup({ recent: 300 });
+    expect((await h(form({ email: 'a@example.com' }, { origin: 'https://evil.example' }))).status).toBe(403);
+    expect((await h(new Request('https://v.example/api/waitlist'))).status).toBe(405);
+    const flood = await h(form({ email: 'a@example.com' }));
+    expect([flood.status, flood.headers.get('retry-after'), rows.length]).toEqual([429, '3600', 0]);
+  });
 });

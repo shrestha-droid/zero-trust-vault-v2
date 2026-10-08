@@ -1,0 +1,22 @@
+    <section class="block wrap" id="waitlist">
+      <div class="waitlist reveal">
+        <div>
+          <p class="label">Early access</p>
+          <h2>Pro and Legacy are <em>opening soon.</em></h2>
+          <p class="lede">The vault itself is live and free today. Leave your email and we'll write to you once, when Pro and Legacy open, with first access.</p>
+        </div>
+        <form method="post" action="/api/waitlist" class="wl-form">
+          <p class="wl-ok" id="joined" role="status">You're on the list. We'll write once, when Pro opens.</p>
+          <p class="wl-bad" id="invalid" role="alert">That email doesn't look right. Please try again.</p>
+          <label for="wl-email" class="label">Your email</label>
+          <div class="wl-row">
+            <input id="wl-email" name="email" type="email" required autocomplete="email" maxlength="254" placeholder="you@example.com">
+            <input type="hidden" name="source" value="pricing">
+            <input type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true" class="hp">
+            <button class="btn" type="submit">Join the waitlist</button>
+          </div>
+          <p class="fine">One email about launch, nothing else. Ask us to delete your address any time. <a href="/privacy">Privacy</a></p>
+        </form>
+      </div>
+    </section>
+

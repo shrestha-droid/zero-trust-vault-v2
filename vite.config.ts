@@ -48,12 +48,12 @@ function csp(supabaseUrl?: string, googleDrive = false): Plugin {
 }
 
 /** Copies the no-JS marketing site (site/) to the output root, filling in the canonical URL. */
-function site(siteUrl: string): Plugin {
+function site(siteUrl: string, flags: { payments: boolean; legacy: boolean }): Plugin {
   return {
     name: 'ztv-site',
     apply: 'build',
     closeBundle() {
-      cpSync('site', 'dist', { recursive: true, filter: (f) => !/\.(ts|json)$/.test(f) });
+      cpSync('site', 'dist', { recursive: true, filter: (f) => !/\.(ts|json)$|fragment\.html$/.test(f) });
 
       // The landing page is rendered once per currency (dist/p/<cur>.html). vercel.json rewrites "/" to the
       // visitor's currency by country; there is deliberately no dist/index.html so that rewrite always wins.
@@ -67,12 +67,13 @@ function site(siteUrl: string): Plugin {
       const sha = createHash('sha256').update(offline).digest('hex');
       writeFileSync('dist/app/zero-trust-vault.sha256', `${sha}  zero-trust-vault.html\n`);
       const vars: Record<string, string> = { SITE_URL: siteUrl, OFFLINE_SHA256: sha, OFFLINE_KB: String(Math.round(offline.length / 1024)), VERSION: version };
-      for (const f of readdirSync('site').filter((f) => f.endsWith('.html') && f !== 'index.html')) {
+      for (const f of readdirSync('site').filter((f) => f.endsWith('.html') && f !== 'index.html' && !f.endsWith('.fragment.html'))) {
         writeFileSync(`dist/${f}`, readFileSync(`site/${f}`, 'utf8').replace(/%([A-Z0-9_]+)%/g, (m, k: string) => vars[k] ?? m));
       }
       mkdirSync('dist/p', { recursive: true });
       const landing = readFileSync('site/index.html', 'utf8').replaceAll('%SITE_URL%', siteUrl);
-      for (const [cur, page] of Object.entries(landingPages(landing))) writeFileSync(`dist/p/${cur.toLowerCase()}.html`, page);
+      const fragments = { waitlist: readFileSync('site/waitlist.fragment.html', 'utf8') };
+      for (const [cur, page] of Object.entries(landingPages(landing, { ...flags, fragments }))) writeFileSync(`dist/p/${cur.toLowerCase()}.html`, page);
     },
   };
 }
@@ -84,6 +85,10 @@ export default defineConfig(({ mode }) => {
     define: { __APP_VERSION__: JSON.stringify(version) },
     build: { outDir: 'dist/app', target: 'es2022', modulePreload: false, reportCompressedSize: false },
     worker: { format: 'es' as const },
-    plugins: [viteSingleFile(), csp(env.VITE_SUPABASE_URL, Boolean(env.VITE_GOOGLE_CLIENT_ID)), site((env.SITE_URL ?? '').replace(/\/+$/, ''))],
+    plugins: [viteSingleFile(), csp(env.VITE_SUPABASE_URL, Boolean(env.VITE_GOOGLE_CLIENT_ID)), site((env.SITE_URL ?? '').replace(/\/+$/, ''), {
+      // Buy buttons only go to real checkout once Stripe links exist; Legacy only once email can be sent.
+      payments: Boolean(env.VITE_CHECKOUT_URL_YEARLY),
+      legacy: Boolean(env.VITE_CHECKOUT_URL_YEARLY && env.RESEND_API_KEY),
+    })],
   };
 });
