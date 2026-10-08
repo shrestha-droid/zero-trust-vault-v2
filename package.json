@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit",
     "check": "npm run typecheck && npm test && npm run build"
   },
-  "license": "UNLICENSED",
+  "license": "AGPL-3.0-or-later",
   "type": "module",
   "dependencies": {
     "@fontsource-variable/archivo": "^5.3.0",
@@ -33,5 +33,13 @@
   "private": true,
   "engines": {
     "node": ">=22.12"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/shrestha-droid/zero-trust-vault-v2.git"
+  },
+  "bugs": {
+    "url": "https://github.com/shrestha-droid/zero-trust-vault-v2/issues"
+  },
+  "homepage": "https://github.com/shrestha-droid/zero-trust-vault-v2"
 }

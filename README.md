@@ -1,5 +1,11 @@
 # Zero-Trust Vault
 
+[![CI](https://github.com/shrestha-droid/zero-trust-vault-v2/actions/workflows/ci.yml/badge.svg)](https://github.com/shrestha-droid/zero-trust-vault-v2/actions/workflows/ci.yml)
+[![License: AGPL v3](https://img.shields.io/badge/license-AGPL--3.0--or--later-b5121b.svg)](LICENSE)
+[![Status: beta](https://img.shields.io/badge/status-beta-16120f.svg)](SECURITY.md)
+
+**Beta, not yet independently audited.** The secret-sharing library is (Cure53, Zellic); this application is not. Read [SECURITY.md](SECURITY.md) for what is and isn't covered, and keep a backup of anything critical.
+
 Client-side, zero-knowledge encryption for things that must outlive you: seed phrases, recovery codes, wills, credentials, files.
 
 A vault can be unlocked by **Shamir shards** (any *K* of *N*), an **Argon2id passphrase**, **both together** (two-factor), or a **hardware passkey** (Touch ID, Windows Hello, YubiKey) via WebAuthn PRF. Each method is an independent, LUKS-style key slot. All cryptography runs in an isolated Web Worker on your device. No server ever sees a key or plaintext.
@@ -42,6 +48,7 @@ The whole app builds into **one self-contained HTML file** with no CDN, no exter
 ## Quick start
 
 ```bash
+git clone https://github.com/shrestha-droid/zero-trust-vault-v2.git && cd zero-trust-vault-v2
 npm install
 cp .env.example .env   # optional: add Supabase URL + anon key for cloud sync
 npm run dev            # http://localhost:5173
@@ -143,6 +150,18 @@ supabase/rls.test.ts       migrations run in PGlite (real Postgres) and attacked
 vite.config.ts             single-file build, CSP hash generation, site copy
 vercel.json                headers, /app redirect, daily cron
 ```
+
+## License
+
+Zero-Trust Vault is free software under the **GNU Affero General Public License v3.0 or later** ([LICENSE](LICENSE)). You may read, audit, run and modify it. If you run a modified version as a service that others use over a network, the AGPL requires you to offer them your modified source. Bundled third-party packages keep their own licenses ([THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)); fonts are under the SIL Open Font License.
+
+The name "Zero-Trust Vault", the logo and the visual identity are **not** licensed by the AGPL. You may fork and self-host the code, but please use your own name and branding for your fork.
+
+**Self-hosting and Pro.** The code that grants Pro and runs Legacy is part of this repository, and the Pro flag lives in your own database, so a self-hosted copy can switch features on for itself. That is by design and fine: what the hosted service sells is reliability (Legacy emails that actually arrive on release day), support, and someone else running it.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). Security issues: use GitHub's private "Report a vulnerability" form, not a public issue.
 
 ## Limits
 

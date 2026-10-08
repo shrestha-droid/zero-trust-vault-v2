@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability (private)
+    url: https://github.com/shrestha-droid/zero-trust-vault-v2/security/advisories/new
+    about: Please don't file security problems as public issues.
