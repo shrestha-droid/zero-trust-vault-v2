@@ -108,6 +108,8 @@ export const cloud = {
     const { error } = await sb().auth.signInWithOAuth({ provider: provider as 'google', options: { redirectTo: appUrl() } });
     raiseAuth(error);
   },
+  /** True once the Supabase email template includes {{ .Token }} (needs custom SMTP), so the code entry has a code to enter. */
+  emailCode: import.meta.env.VITE_EMAIL_CODE === '1',
   /** Passwordless: emails a sign-in link and a one-time code (creates the account on first use). */
   async sendCode(email: string) {
     raiseAuth((await sb().auth.signInWithOtp({ email, options: { emailRedirectTo: appUrl(), shouldCreateUser: true } })).error);

@@ -527,13 +527,13 @@
     <div class="auth-sent" id="auth-sent" hidden>
       <i data-icon="mail" class="empty-icon"></i>
       <h3>Check your email</h3>
-      <p class="hint">We sent a 6-digit code to <strong id="auth-sent-to"></strong>. Enter it here, or open the link in the email on this device.</p>
+      <p class="hint">We sent a sign-in email to <strong id="auth-sent-to"></strong>. <span id="auth-sent-how"></span></p>
       <form id="auth-code-form" class="stack" novalidate>
         <div class="field"><label for="auth-code">Code</label><input id="auth-code" inputmode="numeric" autocomplete="one-time-code" maxlength="12" placeholder="123456"></div>
         <button class="btn primary lg block" id="auth-verify" type="submit"><i data-icon="check"></i><span>Verify and sign in</span></button>
       </form>
       <div class="row gap">
-        <button class="link-btn" id="auth-resend" type="button">Send a new code</button>
+        <button class="link-btn" id="auth-resend" type="button">Send a new email</button>
         <button class="link-btn" id="auth-back" type="button">Use a different email</button>
       </div>
     </div>

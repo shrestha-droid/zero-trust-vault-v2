@@ -1318,14 +1318,16 @@ let resendTimer = 0;
 
 function showCodeStep(to: string) {
   $('auth-sent-to').textContent = to;
+  codeForm.hidden = !cloud.emailCode;
+  $('auth-sent-how').textContent = cloud.emailCode ? 'Enter the 6-digit code, or open the link in the email on this device.' : 'Open the link in it on this device to finish signing in.';
   authForm.hidden = true;
   $('auth-sent').hidden = false;
   codeInput.value = '';
-  codeInput.focus();
+  if (cloud.emailCode) codeInput.focus();
   const btn = $<HTMLButtonElement>('auth-resend');
   let left = RESEND_SECONDS;
   clearInterval(resendTimer);
-  const tick = () => { btn.disabled = left > 0; btn.textContent = left > 0 ? `Send a new code (${left}s)` : 'Send a new code'; if (left-- <= 0) clearInterval(resendTimer); };
+  const tick = () => { btn.disabled = left > 0; btn.textContent = left > 0 ? `Send a new email (${left}s)` : 'Send a new email'; if (left-- <= 0) clearInterval(resendTimer); };
   tick();
   resendTimer = window.setInterval(tick, 1000);
 }
@@ -1365,7 +1367,7 @@ $('auth-resend').addEventListener('click', (e) => busy(e.currentTarget as HTMLBu
   const to = $('auth-sent-to').textContent ?? '';
   await cloud.sendCode(to);
   showCodeStep(to);
-  toast('New code sent.');
+  toast('New email sent.');
 }));
 codeForm.addEventListener('submit', (e) => {
   e.preventDefault();

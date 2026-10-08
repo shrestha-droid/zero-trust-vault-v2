@@ -43,8 +43,8 @@ Smallest money-making launch: Vercel + Google Drive + Supabase Auth, then add Do
    - **Google:** paste the client ID/secret from step 0.
    - **Apple:** needs a paid Apple Developer account ($99/year): create a Services ID and a Sign in with Apple key, then follow Supabase's Apple guide. Skip it at first if you like; just leave `apple` out of `VITE_AUTH_PROVIDERS`.
    - **GitHub** (optional): GitHub → Settings → Developer settings → OAuth Apps, with callback `https://YOUR-PROJECT.supabase.co/auth/v1/callback`.
-   **Authentication → Emails → Templates → Magic link** (and **Confirm signup**): add the line `<p>Your sign-in code: <strong>{{ .Token }}</strong></p>` above the link. The app asks for this 6-digit code first, because an emailed link only works in the browser that asked for it (mail apps open links in their own browser). The code works anywhere. Keep *Email OTP length* at 6.
-   **Authentication → Emails → SMTP Settings:** use Resend's SMTP. Supabase's built-in email only sends a few messages an hour, which isn't enough for real users.
+   **Authentication → Emails → SMTP Settings:** use Resend's SMTP (needs your domain). **Until you do, email sign-in only reaches your own team address**, and Supabase locks the email templates. Google/Apple/GitHub sign-in works without it.
+   **Then, Emails → Templates → Magic link** (and **Confirm signup**) becomes editable: add `<p>Your sign-in code: <strong>{{ .Token }}</strong></p>` above the link and set `VITE_EMAIL_CODE=1` in Vercel. The app then asks for the 6-digit code first, because an emailed link only works in the browser that asked for it. Leave *Email OTP length* at 6. Without `VITE_EMAIL_CODE` the app tells people to open the link instead.
 4. **Project Settings → API:** copy the *Project URL*, the *anon* key and the *service_role* key. The service_role key bypasses all security, so it only ever goes into Vercel's server variables.
 
 ## 2. Dodo Payments (payments and tax)
