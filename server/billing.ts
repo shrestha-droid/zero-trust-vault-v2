@@ -2,7 +2,8 @@
 
 export interface EntitlementRow {
   user_id?: string;
-  stripe_customer: string;
+  /** Null for a one-time (Lifetime) purchase made without a Stripe customer. */
+  stripe_customer: string | null;
   stripe_subscription: string | null;
   plan: 'free' | 'pro';
   status: string;
@@ -10,7 +11,7 @@ export interface EntitlementRow {
 }
 
 type Obj = Record<string, any>;
-export interface StripeEvent { type: string; data: { object: Obj } }
+export interface StripeEvent { type: string; livemode?: boolean; data: { object: Obj } }
 
 const enc = new TextEncoder();
 const hex = (b: ArrayBuffer) => Array.from(new Uint8Array(b), (x) => x.toString(16).padStart(2, '0')).join('');
@@ -44,11 +45,14 @@ export async function verifyStripe(raw: string, header: string | null, secret: s
 export function entitlementFrom(event: StripeEvent): EntitlementRow | null {
   const o = event.data?.object ?? {};
   if (event.type === 'checkout.session.completed') {
-    if (!o.customer || !UUID.test(o.client_reference_id ?? '')) return null;
-    if (o.payment_status && o.payment_status !== 'paid' && o.payment_status !== 'no_payment_required') return null;
+    if (!UUID.test(o.client_reference_id ?? '')) return null;
     const lifetime = o.mode === 'payment';
+    // A subscription always has a customer. A one-time payment may not (Stripe only creates one if asked to),
+    // and requiring it here would silently drop a paid Lifetime purchase.
+    if (!o.customer && !lifetime) return null;
+    if (o.payment_status && o.payment_status !== 'paid' && o.payment_status !== 'no_payment_required') return null;
     return {
-      user_id: o.client_reference_id, stripe_customer: o.customer, stripe_subscription: o.subscription ?? null,
+      user_id: o.client_reference_id, stripe_customer: o.customer ?? null, stripe_subscription: o.subscription ?? null,
       plan: 'pro', status: lifetime ? 'lifetime' : 'active', current_period_end: null,
     };
   }
@@ -67,8 +71,20 @@ export function entitlementFrom(event: StripeEvent): EntitlementRow | null {
   return null;
 }
 
+/** A fully refunded charge revokes access (looked up by customer, so Lifetime must be created with a customer). */
+export function refundedCustomer(event: StripeEvent): string | null {
+  const o = event.data?.object ?? {};
+  return event.type === 'charge.refunded' && o.refunded === true && typeof o.customer === 'string' ? o.customer : null;
+}
+
 export interface BillingDeps {
   secret: string;
+  /** Test-mode events are rejected unless this is true, so a leftover test link can never grant real Pro. */
+  acceptTest?: boolean;
+  /** Existing plan status for a user, so a Pro purchase can never downgrade a Lifetime plan. */
+  currentStatus?: (userId: string) => Promise<string | null>;
+  /** Remove paid access for a refunded customer. */
+  revokeByCustomer?: (customer: string) => Promise<{ error: { message: string } | null }>;
   /** Insert or replace the row for a known user (checkout). */
   upsertByUser: (row: EntitlementRow) => Promise<{ error: { message: string } | null }>;
   /** Update the row for an existing Stripe customer (subscription lifecycle). Never downgrades a lifetime plan. */
@@ -82,8 +98,15 @@ export function makeBillingHandler(deps: BillingDeps) {
     if (!(await verifyStripe(raw, req.headers.get('stripe-signature'), deps.secret))) return new Response('Invalid signature', { status: 400 });
     let event: StripeEvent;
     try { event = JSON.parse(raw); } catch { return new Response('Invalid JSON', { status: 400 }); }
+    if (event.livemode === false && !deps.acceptTest) return new Response('ignored: test-mode event');
+    const refunded = refundedCustomer(event);
+    if (refunded && deps.revokeByCustomer) {
+      const r = await deps.revokeByCustomer(refunded);
+      return r.error ? new Response(r.error.message, { status: 500 }) : new Response('ok');
+    }
     const row = entitlementFrom(event);
     if (!row) return new Response('ignored');
+    if (row.user_id && row.status !== 'lifetime' && (await deps.currentStatus?.(row.user_id)) === 'lifetime') return new Response('ignored: already lifetime');
     const { error } = row.user_id ? await deps.upsertByUser(row) : await deps.updateByCustomer(row);
     // A 5xx makes Stripe retry with backoff, which is what we want for transient DB errors.
     if (error) return new Response(error.message, { status: 500 });

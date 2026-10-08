@@ -44,25 +44,38 @@ Smallest money-making launch: Vercel + Google Drive + Supabase Auth, then add St
    **Authentication → Emails → SMTP Settings:** use Resend's SMTP. Supabase's built-in email only sends a few messages an hour, which isn't enough for real users.
 4. **Project Settings → API:** copy the *Project URL*, the *anon* key and the *service_role* key. The service_role key bypasses all security, so it only ever goes into Vercel's server variables.
 
-## 2. Stripe (payments)
+## 2. Stripe (payments), automated
 
-1. **Product catalog:** create *Zero-Trust Vault Pro* with a **yearly recurring** price ($60 on the website), and *Zero-Trust Vault Lifetime* with a **one-time** price ($199). Change the amounts freely, but keep `site/index.html` in sync.
-2. **Payment Links:** create one link per price. Under *After payment*, choose "Don't show confirmation page" and redirect to `https://YOUR-DOMAIN/app/#upgraded`. Copy both links.
-3. **Settings → Billing → Customer portal:** activate it and copy the portal login link.
-4. **Developers → Webhooks → Add endpoint:** `https://YOUR-DOMAIN/api/stripe-webhook`, with events `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated` and `customer.subscription.deleted`. Copy the signing secret (`whsec_…`).
-5. **Settings → Billing → Subscriptions and emails:** turn on Smart Retries and failed-payment emails, so Stripe chases failed cards without you.
-6. **Tax:** you are the seller of record. Turn on Stripe Tax (Settings → Tax) or get advice. If you'd rather never deal with sales tax or VAT, a merchant-of-record provider (Paddle, Lemon Squeezy) is the alternative; only `server/billing.ts` would change.
+Everything below is one script. It uses the Stripe CLI to log in (so the script never sees your keys) and is safe to re-run any time.
 
-### Regional prices (do this when creating the two prices)
+```bash
+stripe login                                                        # once; opens your browser
+node ops/stripe-setup.mjs --site https://YOUR-DOMAIN --vercel       # TEST mode: no real money
+```
 
-The landing page shows each visitor a local price from `site/pricing.json` (e.g. ₹4,999 in India, £49 in the UK). Stripe must charge the same amounts:
+It creates the **Pro (yearly)** and **Lifetime** products with prices in every currency from `site/pricing.json` (zero-decimal currencies like JPY handled), a **Payment Link** for each, the **customer billing portal**, and the **webhook** the app listens to. With `--vercel` it stores the webhook secret in Vercel without printing it.
 
-1. Open each price (Pro yearly, Lifetime) → **Add currency** (Stripe calls these *currency options*).
-2. Add every currency in `site/pricing.json` with **exactly** its amount: EUR 59/189, GBP 49/159, INR 4999/16499, CAD 79/269, AUD 89/299, JPY 8900/29800, CHF 55/179.
-3. Payment Links then charge visitors in their local currency automatically. Don't turn on Stripe's *Adaptive Pricing* instead: it converts at live rates, so checkout wouldn't match the price on the site.
-4. With Stripe Tax, set prices to **tax-inclusive** for EUR/GBP/CHF so the shown price is what people pay.
+**TEST mode deliberately does not publish the checkout links**, so the public site keeps showing the waitlist while you test. To test: open the printed Payment Link, pay with card `4242 4242 4242 4242` (any future date, any CVC), and check the account gets Pro.
 
-To change a price later, edit `site/pricing.json` and the matching Stripe currency option together. To add a country, add it to `pricing.json` and run `npm test`: the test fails and shows the exact `vercel.json` rewrite that's missing.
+**Going live:** activate your Stripe account (Dashboard → Activate: business details and bank account), then run it again with `--live`:
+
+```bash
+node ops/stripe-setup.mjs --site https://YOUR-DOMAIN --live --vercel
+```
+
+That creates the same objects in live mode, publishes the live checkout links to Vercel, and removes test-mode acceptance. **Redeploy** afterwards (push any commit); the buy buttons then switch from "Join the waitlist" to real checkout.
+
+Safety rails already built in, and worth knowing:
+- **Test-mode events are ignored unless `STRIPE_ACCEPT_TEST=1`**, so a leftover test link can never grant real Pro. The script sets it in test mode and removes it for live.
+- **A Lifetime purchase can't be downgraded** by a later Pro subscription.
+- **A full refund revokes Pro** (the Lifetime link creates a Stripe customer for exactly this reason).
+- If Stripe refuses a currency for your account, the script skips it and tells you which to remove from `site/pricing.json`, so the site never shows a price Stripe can't charge.
+
+Still manual, in the Stripe dashboard: **Settings → Billing → Subscriptions and emails** (turn on Smart Retries and failed-payment emails so Stripe chases failed cards for you), and **tax**: you are the seller of record, so enable Stripe Tax (Settings → Tax) and re-run with `--tax`, or use a merchant-of-record provider (Paddle, Lemon Squeezy) if you never want to deal with sales tax or VAT (only `server/billing.ts` would change).
+
+### Regional prices
+
+The landing page shows each visitor a local price from `site/pricing.json`, and the setup script creates exactly those amounts in Stripe, so the two can't drift. To change a price, edit the file and re-run the script: it makes a new Stripe price and link and retires the old one. To add a country, add it to the file and run `npm test`: the test fails and shows the exact `vercel.json` rewrite that's missing.
 
 ## 3. Resend (Legacy emails)
 

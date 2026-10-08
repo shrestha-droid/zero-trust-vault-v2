@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { makeWaitlistHandler } from './waitlist.js';
-import { entitlementFrom, hmacHex, makeBillingHandler, verifyStripe, type EntitlementRow } from './billing.js';
+import { entitlementFrom, hmacHex, makeBillingHandler, refundedCustomer, verifyStripe, type EntitlementRow } from './billing.js';
 import {
   DAY, decide, esc, sendEmail, makeCheckinHandler, makeCheckinToken, makeTickHandler, releaseEmail, runTick, verifyCheckinToken,
   type Email, type LegacyPlan,
@@ -36,6 +36,12 @@ describe('entitlementFrom', () => {
       .toMatchObject({ user_id: UID, plan: 'pro', status: 'active', stripe_subscription: 'sub_1' });
     expect(entitlementFrom(ev('checkout.session.completed', { mode: 'payment', client_reference_id: UID, customer: 'cus_1', payment_status: 'paid' })))
       .toMatchObject({ plan: 'pro', status: 'lifetime' });
+  });
+  it('a Lifetime payment with NO Stripe customer still grants Pro (Stripe omits the customer on one-time payments)', () => {
+    expect(entitlementFrom(ev('checkout.session.completed', { mode: 'payment', client_reference_id: UID, customer: null, payment_status: 'paid' })))
+      .toMatchObject({ user_id: UID, plan: 'pro', status: 'lifetime', stripe_customer: null });
+    // …but a subscription with no customer is malformed and must not grant anything
+    expect(entitlementFrom(ev('checkout.session.completed', { mode: 'subscription', client_reference_id: UID, customer: null, payment_status: 'paid' }))).toBeNull();
   });
   it('ignores unpaid checkouts and missing/forged user ids', () => {
     expect(entitlementFrom(ev('checkout.session.completed', { mode: 'payment', client_reference_id: UID, customer: 'c', payment_status: 'unpaid' }))).toBeNull();
@@ -228,5 +234,46 @@ describe('waitlist', () => {
     expect((await h(new Request('https://v.example/api/waitlist'))).status).toBe(405);
     const flood = await h(form({ email: 'a@example.com' }));
     expect([flood.status, flood.headers.get('retry-after'), rows.length]).toEqual([429, '3600', 0]);
+  });
+});
+
+describe('billing safety rails', () => {
+  const evt = (type: string, object: object, livemode = true) => JSON.stringify({ type, livemode, data: { object } });
+  const post2 = async (h: (r: Request) => Promise<Response>, body: string) => h(new Request('https://x/api/stripe-webhook', { method: 'POST', body, headers: { 'stripe-signature': await signed(body) } }));
+  const setup2 = (over: { acceptTest?: boolean; status?: string | null } = {}) => {
+    const calls: string[] = [];
+    const h = makeBillingHandler({
+      secret: SECRET, acceptTest: over.acceptTest,
+      currentStatus: async () => over.status ?? null,
+      upsertByUser: async (r) => { calls.push(`upsert:${r.status}`); return { error: null }; },
+      updateByCustomer: async (r) => { calls.push(`update:${r.status}`); return { error: null }; },
+      revokeByCustomer: async (c) => { calls.push(`revoke:${c}`); return { error: null }; },
+    });
+    return { h, calls };
+  };
+  const checkout = (mode: string, livemode = true) => evt('checkout.session.completed', { mode, client_reference_id: UID, customer: mode === 'payment' ? null : 'cus_1', payment_status: 'paid' }, livemode);
+
+  it('test-mode events are ignored unless explicitly accepted (a leftover test link can never grant real Pro)', async () => {
+    const live = setup2();
+    expect(await (await post2(live.h, checkout('payment', false))).text()).toBe('ignored: test-mode event');
+    expect(live.calls).toEqual([]);
+    const test = setup2({ acceptTest: true });
+    await post2(test.h, checkout('payment', false));
+    expect(test.calls).toEqual(['upsert:lifetime']);
+  });
+  it('a later Pro purchase can never downgrade an existing Lifetime plan', async () => {
+    const { h, calls } = setup2({ status: 'lifetime' });
+    expect(await (await post2(h, checkout('subscription'))).text()).toBe('ignored: already lifetime');
+    await post2(h, checkout('payment'));
+    expect(calls).toEqual(['upsert:lifetime']); // re-buying Lifetime is still recorded
+  });
+  it('a full refund revokes paid access; a partial refund does not', async () => {
+    expect(refundedCustomer({ type: 'charge.refunded', data: { object: { refunded: true, customer: 'cus_9' } } })).toBe('cus_9');
+    expect(refundedCustomer({ type: 'charge.refunded', data: { object: { refunded: false, customer: 'cus_9' } } })).toBeNull();
+    expect(refundedCustomer({ type: 'charge.refunded', data: { object: { refunded: true, customer: null } } })).toBeNull();
+    const { h, calls } = setup2();
+    await post2(h, evt('charge.refunded', { refunded: true, customer: 'cus_9' }));
+    await post2(h, evt('charge.refunded', { refunded: false, customer: 'cus_9' }));
+    expect(calls).toEqual(['revoke:cus_9']);
   });
 });
