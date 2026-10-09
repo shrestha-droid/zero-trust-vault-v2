@@ -1,0 +1,5 @@
+Contact: https://github.com/shrestha-droid/zero-trust-vault-v2/security/advisories/new
+Expires: 2027-10-01T00:00:00.000Z
+Preferred-Languages: en
+Policy: %SITE_URL%/security
+Canonical: %SITE_URL%/.well-known/security.txt

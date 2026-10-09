@@ -67,9 +67,11 @@ function site(siteUrl: string, flags: { payments: boolean; legacy: boolean }): P
       const sha = createHash('sha256').update(offline).digest('hex');
       writeFileSync('dist/app/zero-trust-vault.sha256', `${sha}  zero-trust-vault.html\n`);
       const vars: Record<string, string> = { SITE_URL: siteUrl, OFFLINE_SHA256: sha, OFFLINE_KB: String(Math.round(offline.length / 1024)), VERSION: version };
-      for (const f of readdirSync('site').filter((f) => f.endsWith('.html') && f !== 'index.html' && !f.endsWith('.fragment.html'))) {
+      for (const f of readdirSync('site').filter((f) => (/\.(html|txt|xml)$/.test(f)) && f !== 'index.html' && !f.endsWith('.fragment.html'))) {
         writeFileSync(`dist/${f}`, readFileSync(`site/${f}`, 'utf8').replace(/%([A-Z0-9_]+)%/g, (m, k: string) => vars[k] ?? m));
       }
+      const sec = 'dist/.well-known/security.txt';
+      writeFileSync(sec, readFileSync(sec, 'utf8').replace(/%([A-Z0-9_]+)%/g, (m, k: string) => vars[k] ?? m));
       mkdirSync('dist/p', { recursive: true });
       const landing = readFileSync('site/index.html', 'utf8').replaceAll('%SITE_URL%', siteUrl);
       const fragments = { waitlist: readFileSync('site/waitlist.fragment.html', 'utf8') };
