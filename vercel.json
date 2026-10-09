@@ -7,6 +7,17 @@
   "cleanUrls": true,
   "redirects": [
     {
+      "source": "/((?!api/).*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "zero-trust-vault-v2.vercel.app"
+        }
+      ],
+      "destination": "https://www.zerotrustvault.in/$1",
+      "permanent": true
+    },
+    {
       "source": "/app",
       "destination": "/app/",
       "permanent": true
