@@ -68,6 +68,13 @@ export const local = {
 const URL_ = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 const BUCKET = 'vault-store';
+const SIGNIN_WINDOW = 'ztv-signin';
+// A cross-origin hop through the provider switches browsing-context group (our COOP), which clears window.name and
+// cuts window.opener, so the popup can't recognise itself that way. Instead the opener leaves a short-lived marker
+// in localStorage, and a load that returns with ?code= while it is fresh is the popup.
+const POPUP_MARK = 'ztv-signin-popup';
+const markFresh = () => { try { return Date.now() - Number(localStorage.getItem(POPUP_MARK)) < 5 * 60_000; } catch { return false; } };
+const returnedInPopup = typeof location !== 'undefined' && /[?&]code=/.test(location.search) && markFresh();
 // Sign-in redirects and emailed links need the hosted site; the downloaded offline file (file://) can't complete them.
 export const cloudConfigured = Boolean(URL_ && KEY) && typeof location !== 'undefined' && /^https?:$/.test(location.protocol);
 let client: SupabaseClient | null = null;
@@ -103,11 +110,25 @@ export const cloud = {
   },
   /** Social sign-in providers enabled for this deployment (must also be enabled in Supabase → Auth → Providers). */
   providers: ((import.meta.env.VITE_AUTH_PROVIDERS as string | undefined) ?? '').split(',').map((x) => x.trim()).filter(Boolean),
-  /** Full-page redirect to Google/Apple/…; supabase-js completes the sign-in when the app loads again. */
+  /**
+   * Google/Apple/… sign-in in a popup, so this page (and any unsaved Seal form or on-screen shard) is never reloaded.
+   * The popup returns to the app, supabase-js stores the session in the shared localStorage and tells this tab over
+   * its own BroadcastChannel (onChange fires SIGNED_IN here); the popup then closes itself. If the browser blocks
+   * the popup we fall back to a full-page redirect. MUST be called synchronously inside a click handler.
+   */
   async signInWith(provider: string) {
-    const { error } = await sb().auth.signInWithOAuth({ provider: provider as 'google', options: { redirectTo: appUrl() } });
-    raiseAuth(error);
+    const popup = window.open('', SIGNIN_WINDOW, 'popup,width=520,height=720');
+    if (popup) try { localStorage.setItem(POPUP_MARK, String(Date.now())); } catch { /* popup still works; it just won't close itself */ }
+    try {
+      const { data, error } = await sb().auth.signInWithOAuth({ provider: provider as 'google', options: { redirectTo: appUrl(), skipBrowserRedirect: true } });
+      raiseAuth(error);
+      if (!data.url) throw new VaultError('Could not start sign-in. Try again.');
+      if (popup) popup.location.href = data.url; else location.assign(data.url);
+    } catch (e) { popup?.close(); throw e; }
   },
+  /** True in the sign-in popup (decided at load), which should close itself once signed in. */
+  inSignInPopup: () => returnedInPopup,
+  clearPopupMark() { try { localStorage.removeItem(POPUP_MARK); } catch { /* ignore */ } },
   /** True once the Supabase email template includes {{ .Token }} (needs custom SMTP), so the code entry has a code to enter. */
   emailCode: import.meta.env.VITE_EMAIL_CODE === '1',
   /** Passwordless: emails a sign-in link and a one-time code (creates the account on first use). */

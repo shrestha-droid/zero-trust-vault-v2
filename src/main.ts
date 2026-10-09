@@ -1345,8 +1345,10 @@ function openAuth() {
       class: 'provider', type: 'button',
       onclick: (e: Event) => {
         document.querySelectorAll<HTMLButtonElement>('.provider').forEach((b) => (b.disabled = true));
-        (e.currentTarget as HTMLElement).lastChild!.textContent = 'Redirecting…';
-        cloud.signInWith(p).catch((err) => { fail(err); openAuth(); }); // success navigates away
+        (e.currentTarget as HTMLElement).lastChild!.textContent = 'Finish in the sign-in window…';
+        cloud.signInWith(p).catch((err) => { fail(err); openAuth(); });
+        // Back on this tab without being signed in (window closed, changed their mind): offer the buttons again.
+        window.addEventListener('focus', () => setTimeout(() => { if (authDialog.open && !authForm.hidden) openAuth(); }, 800), { once: true });
       },
     }, meta.icon(), h('span', {}, `Continue with ${meta.label}`));
   }));
@@ -1436,6 +1438,8 @@ $('drive-connect').addEventListener('click', () => connectDrive());
 $('drive-disconnect').addEventListener('click', () => { drive.disconnect(); toast('Google Drive disconnected on this device.'); refreshDrive(); void refreshDest(); });
 cloud.onChange((event) => {
   if (event === 'SIGNED_IN') {
+    cloud.clearPopupMark();
+    if (cloud.inSignInPopup()) setTimeout(() => window.close(), 300); // the opener tab already got the session
     if (authDialog.open) authDialog.close();
     // Back from Google/Apple/email link: supabase-js has consumed ?code=; tidy the address bar.
     if (returningFromSignIn && /[?&]code=/.test(location.search)) { history.replaceState(null, '', location.pathname + location.hash); toast('Signed in.'); }
