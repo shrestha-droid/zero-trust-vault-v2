@@ -16,9 +16,11 @@ const back = (siteUrl: string, hash: string) => new Response(null, { status: 303
 export function makeWaitlistHandler(d: WaitlistDeps) {
   return async (req: Request): Promise<Response> => {
     if (req.method !== 'POST') return new Response('Method not allowed', { status: 405, headers: { Allow: 'POST' } });
-    // Only our own pages may post (blocks cross-site form abuse; same-origin form posts send Origin).
+    // Only our own pages may post (blocks cross-site form abuse). Our pages send Referrer-Policy: no-referrer,
+    // and browsers then send "Origin: null" on form posts, so prefer Sec-Fetch-Site and accept "null" as a fallback.
+    const fetchSite = req.headers.get('sec-fetch-site');
     const origin = req.headers.get('origin');
-    if (origin && origin !== d.siteUrl) return new Response('Forbidden', { status: 403 });
+    if (fetchSite ? fetchSite !== 'same-origin' : origin && origin !== 'null' && origin !== d.siteUrl) return new Response('Forbidden', { status: 403 });
     const form = new URLSearchParams(await req.text());
     // Honeypot: real people never fill the hidden "website" field. Pretend success so bots learn nothing.
     if (form.get('website')) return back(d.siteUrl, '#joined');

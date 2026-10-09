@@ -281,6 +281,11 @@ describe('waitlist', () => {
     const { h, rows } = setup({ recent: 300 });
     expect((await h(form({ email: 'a@example.com' }, { origin: 'https://evil.example' }))).status).toBe(403);
     expect((await h(new Request('https://v.example/api/waitlist'))).status).toBe(405);
+    // Real browsers: our no-referrer policy makes the form post carry "Origin: null" (this was a live 403).
+    const real = setup();
+    expect((await real.h(form({ email: 'a@example.com' }, { origin: 'null', 'sec-fetch-site': 'same-origin' }))).status).toBe(303);
+    expect((await real.h(form({ email: 'a@example.com' }, { origin: 'null', 'sec-fetch-site': 'cross-site' }))).status).toBe(403);
+    expect((await real.h(form({ email: 'a@example.com' }, { origin: 'null' }))).status).toBe(303);
     const flood = await h(form({ email: 'a@example.com' }));
     expect([flood.status, flood.headers.get('retry-after'), rows.length]).toEqual([429, '3600', 0]);
   });
