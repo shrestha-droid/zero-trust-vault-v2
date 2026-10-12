@@ -2,6 +2,9 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>%SITE_URL%/</loc></url>
   <url><loc>%SITE_URL%/security</loc></url>
+  <url><loc>%SITE_URL%/crypto-inheritance</loc></url>
+  <url><loc>%SITE_URL%/seed-phrase-backup</loc></url>
+  <url><loc>%SITE_URL%/shamir-secret-sharing</loc></url>
   <url><loc>%SITE_URL%/privacy</loc></url>
   <url><loc>%SITE_URL%/terms</loc></url>
   <url><loc>%SITE_URL%/refunds</loc></url>

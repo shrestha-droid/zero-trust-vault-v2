@@ -270,6 +270,12 @@ footer nav a:hover { color: var(--ink); }
 .doc code { font: 500 0.88em var(--mono); background: var(--paper-2); padding: 0.1em 0.35em; }
 .doc .lede { margin-top: 1rem; }
 .doc a { text-decoration: underline; text-decoration-color: var(--red); text-underline-offset: 3px; }
+.doc a.btn { text-decoration: none; margin-top: 0.6rem; }
+.doc h3 { font: 600 1.02rem/1.35 var(--sans); margin: 1.4rem 0 0.35rem; }
+.doc ol { padding-left: 1.4rem; display: grid; gap: 0.55rem; }
+.doc table { display: block; overflow-x: auto; border-collapse: collapse; margin: 1rem 0; font-size: 0.92rem; border-top: 2px solid var(--ink); }
+.doc th, .doc td { padding: 0.75rem 0.8rem 0.75rem 0; text-align: left; vertical-align: top; border-bottom: 1px solid var(--rule-2); color: var(--ink-2); }
+.doc thead th { font: 600 0.64rem var(--sans); letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-3); }
 
 .fine-print { margin-top: 1.6rem; max-width: 36rem; color: rgba(243, 238, 227, 0.62); font-size: 0.88rem; line-height: 1.6; }
 .fine-print a { color: #ff5a62; text-underline-offset: 3px; }

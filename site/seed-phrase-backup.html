@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; font-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="referrer" content="no-referrer">
+  <title>How to back up a seed phrase safely (and split it) · Zero-Trust Vault</title>
+  <meta name="description" content="Every way to back up a crypto seed phrase, compared honestly: paper, steel plates, password managers, cutting the phrase in half (don't), and encrypting it with the key split between people you trust.">
+  <meta property="og:type" content="article">
+  <meta property="og:title" content="How to back up a seed phrase safely">
+  <meta property="og:description" content="Paper, steel, password managers, splitting: every option compared honestly.">
+  <meta property="og:image" content="%SITE_URL%/og.png">
+  <meta property="og:url" content="%SITE_URL%/seed-phrase-backup">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="canonical" href="%SITE_URL%/seed-phrase-backup">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23f3eee3'/%3E%3Cg fill='none' stroke='%2316120f' stroke-width='1.1'%3E%3Ccircle cx='16' cy='16' r='13.5'/%3E%3Ccircle cx='22' cy='16' r='5.2'/%3E%3Ccircle cx='19' cy='21.2' r='5.2'/%3E%3Ccircle cx='13' cy='21.2' r='5.2'/%3E%3Ccircle cx='10' cy='16' r='5.2'/%3E%3Ccircle cx='13' cy='10.8' r='5.2'/%3E%3Ccircle cx='19' cy='10.8' r='5.2'/%3E%3C/g%3E%3Ccircle cx='16' cy='16' r='2.4' fill='%23b5121b'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/site.css">
+</head>
+<body>
+  <header class="nav"><div class="wrap"><a class="logo" href="/"><svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1"><circle cx="16" cy="16" r="15"/><circle cx="22" cy="16" r="5.6"/><circle cx="19" cy="21.2" r="5.6"/><circle cx="13" cy="21.2" r="5.6"/><circle cx="10" cy="16" r="5.6"/><circle cx="13" cy="10.8" r="5.6"/><circle cx="19" cy="10.8" r="5.6"/></g><circle class="dot" cx="16" cy="16" r="2.4"/></svg>Zero-Trust Vault</a><a class="btn primary" href="/app/">Open the app</a></div></header>
+  <main class="wrap doc">
+    <p class="eyebrow">Guide</p>
+    <h1>How to back up a seed phrase safely.</h1>
+    <p class="lede">A seed phrase has two ways to fail: you lose it, or someone else finds it. Most backup advice fixes one by making the other worse. Here is every common option, compared honestly, including the one that fixes both.</p>
+
+    <h2>The two rules</h2>
+    <ul>
+      <li><b>Never type it into anything online in plain text.</b> Not a notes app, not an email to yourself, not a photo, not a cloud document. Those get synced, backed up, indexed and breached.</li>
+      <li><b>Never keep exactly one copy.</b> One copy is one fire, one flood or one house move away from gone.</li>
+    </ul>
+    <p>The trouble is that "more copies" breaks the first rule's spirit: every extra plain copy is another place it can be found.</p>
+
+    <h2>The options, compared</h2>
+    <table>
+      <thead><tr><th></th><th>Survives loss?</th><th>Safe if found?</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><b>Paper, one copy</b></td><td>No</td><td>No</td><td>Fine for small amounts. Ink fades, paper burns.</td></tr>
+        <tr><td><b>Steel plate</b></td><td>Fire and flood, yes</td><td>No</td><td>Excellent against disasters, does nothing against a burglar or a curious relative.</td></tr>
+        <tr><td><b>Password manager</b></td><td>Yes</td><td>Only as safe as its master password</td><td>Puts your coins one phishing attack away. Many people accept this for small amounts.</td></tr>
+        <tr><td><b>Cut the phrase in half</b></td><td>No</td><td><b>Worse than it looks</b></td><td>Half of a 12-word phrase leaves about 64 bits to guess: brute-forceable for a well-funded attacker. And losing either half loses everything.</td></tr>
+        <tr><td><b>Passphrase (25th word)</b></td><td>Only if you remember it</td><td>Yes</td><td>Strong, but now you have two secrets to back up, and a forgotten passphrase is a lost wallet.</td></tr>
+        <tr><td><b>Encrypt, then split the key</b></td><td>Yes, up to the threshold</td><td>Yes</td><td>Any <i>K</i> of <i>N</i> shares open it; fewer reveal nothing. Needs a tool you trust.</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Why "split it in half" is a trap</h2>
+    <p>It feels like two people each holding half is safe. It isn't. Each word in a standard phrase carries 11 bits, so someone holding six of twelve words has only about 64 bits left to guess, a fraction of the original 128. Worse, it has no redundancy: if either half is lost, so is the wallet. Proper splitting (<a href="/shamir-secret-sharing">Shamir secret sharing</a>) gives each person a share that reveals <b>nothing</b> on its own, and lets you lose some shares safely.</p>
+
+    <h2>The setup that survives both failures</h2>
+    <ol>
+      <li><b>Keep your steel or paper backup</b> in one secure place, as the copy you'd use day to day.</li>
+      <li><b>Make an encrypted copy</b> of the seed phrase (plus the passphrase, if you use one) on an offline device.</li>
+      <li><b>Split the key 2 of 3 or 3 of 5.</b> Store the shares in different places: a home safe, a bank deposit box, a family member's house, your lawyer.</li>
+      <li><b>Store the encrypted vault anywhere,</b> even in the cloud. Without enough shares it's random noise.</li>
+      <li><b>Test recovery</b> from the shares before you rely on them.</li>
+    </ol>
+    <p>Now a burglar who finds one share gets nothing, a fire that takes one location costs you nothing, and if something happens to you, your family can still get in. That last point is the start of a <a href="/crypto-inheritance">crypto inheritance plan</a>.</p>
+
+    <h2>Doing it with Zero-Trust Vault</h2>
+    <p>Zero-Trust Vault encrypts the phrase on your device with AES-256-GCM, splits the key with an independently audited Shamir library, and prints a recovery-kit page with a QR code for each share. Each share carries a checksum, so a typo is caught on entry, and given one more share than the threshold, a forged share is named rather than silently accepted. You can download the app as a single HTML file and use it on an offline computer, with an air-gap mode that makes the browser itself refuse network access. It's free and open source.</p>
+    <p><a class="btn primary" href="/app/">Seal a seed phrase, free</a></p>
+    <p class="muted">Zero-Trust Vault is beta software and has not yet had an independent audit of its own (its secret-sharing library has). For large amounts, keep your existing backup as well. <a href="/security">Read exactly what is and isn't covered.</a></p>
+
+    <h2>Hardware wallets with Shamir built in</h2>
+    <p>Some hardware wallets support SLIP-39, a standard that splits the wallet seed itself into share phrases. If yours does and you're setting up a new wallet, it's a good option for that wallet. An encrypted vault is still useful for everything around it: the PIN, the passphrase, exchange 2FA codes, and instructions for your family.</p>
+
+    <p class="muted">Related: <a href="/crypto-inheritance">Crypto inheritance</a> · <a href="/shamir-secret-sharing">Shamir secret sharing, explained</a></p>
+  </main>
+  <footer><div class="wrap"><span>© 2026 Zero-Trust Vault</span><nav aria-label="Legal"><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/security">Security</a><a href="https://github.com/shrestha-droid/zero-trust-vault-v2" rel="noopener">Source</a><a href="/">Home</a></nav></div></footer>
+</body>
+</html>

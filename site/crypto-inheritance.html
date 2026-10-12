@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; font-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="referrer" content="no-referrer">
+  <title>Crypto inheritance: how to pass on crypto when you die · Zero-Trust Vault</title>
+  <meta name="description" content="A practical guide to crypto inheritance: why a seed phrase in a will is a bad idea, the four ways people actually do it, and how to let your family recover your crypto without any one of them being able to take it early.">
+  <meta property="og:type" content="article">
+  <meta property="og:title" content="Crypto inheritance: how to pass on crypto when you die">
+  <meta property="og:description" content="Why a seed phrase in a will is a bad idea, and what to do instead.">
+  <meta property="og:image" content="%SITE_URL%/og.png">
+  <meta property="og:url" content="%SITE_URL%/crypto-inheritance">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="canonical" href="%SITE_URL%/crypto-inheritance">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23f3eee3'/%3E%3Cg fill='none' stroke='%2316120f' stroke-width='1.1'%3E%3Ccircle cx='16' cy='16' r='13.5'/%3E%3Ccircle cx='22' cy='16' r='5.2'/%3E%3Ccircle cx='19' cy='21.2' r='5.2'/%3E%3Ccircle cx='13' cy='21.2' r='5.2'/%3E%3Ccircle cx='10' cy='16' r='5.2'/%3E%3Ccircle cx='13' cy='10.8' r='5.2'/%3E%3Ccircle cx='19' cy='10.8' r='5.2'/%3E%3C/g%3E%3Ccircle cx='16' cy='16' r='2.4' fill='%23b5121b'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/site.css">
+</head>
+<body>
+  <header class="nav"><div class="wrap"><a class="logo" href="/"><svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1"><circle cx="16" cy="16" r="15"/><circle cx="22" cy="16" r="5.6"/><circle cx="19" cy="21.2" r="5.6"/><circle cx="13" cy="21.2" r="5.6"/><circle cx="10" cy="16" r="5.6"/><circle cx="13" cy="10.8" r="5.6"/><circle cx="19" cy="10.8" r="5.6"/></g><circle class="dot" cx="16" cy="16" r="2.4"/></svg>Zero-Trust Vault</a><a class="btn primary" href="/app/">Open the app</a></div></header>
+  <main class="wrap doc">
+    <p class="eyebrow">Guide</p>
+    <h1>Crypto inheritance: how to pass on crypto when you die.</h1>
+    <p class="lede">Self-custody means nobody can take your coins. It also means nobody can recover them for your family. Billions in crypto are already lost for good because the only person who knew the seed phrase is gone. Here is how to avoid that, without handing anyone the keys early.</p>
+
+    <h2>The problem in one sentence</h2>
+    <p>Whoever can read your seed phrase owns your crypto, so you need your family to be able to read it <b>after</b> you're gone and nobody to be able to read it <b>before</b>. Every inheritance plan is a trade-off between those two.</p>
+
+    <h2>Why "put it in the will" doesn't work</h2>
+    <ul>
+      <li><b>Wills become public.</b> In many countries a will is read by lawyers, courts and executors, and after probate it can become a public record. A seed phrase in it is a seed phrase given away.</li>
+      <li><b>Your lawyer becomes a target.</b> Anyone who holds the full phrase can move the funds today, and nobody would notice until it's too late.</li>
+      <li><b>It goes stale.</b> Change wallets once and the will points at an empty one.</li>
+    </ul>
+    <p>The will should say <i>that</i> the crypto exists and <i>who</i> should get it. It should not contain the phrase.</p>
+
+    <h2>The four ways people actually do it</h2>
+    <table>
+      <thead><tr><th></th><th>How it works</th><th>The catch</th></tr></thead>
+      <tbody>
+        <tr><td><b>Tell one person</b></td><td>A spouse or child knows the phrase, or where it's written down.</td><td>They can take it early, lose it, or be pressured into revealing it. One point of failure.</td></tr>
+        <tr><td><b>Custodial exchange</b></td><td>Leave the coins on an exchange; heirs claim them with a death certificate.</td><td>It's not self-custody: the exchange can freeze, fail or be hacked. Claims take months.</td></tr>
+        <tr><td><b>Multisig wallet</b></td><td>The wallet needs, say, 2 of 3 keys to spend. Heirs hold some keys.</td><td>Strong, but heirs have to run multisig software correctly under stress, and it only covers that one wallet.</td></tr>
+        <tr><td><b>Split the secret</b></td><td>Encrypt the phrase, then split the key so that any <i>K</i> of <i>N</i> people can rebuild it.</td><td>Needs the people to cooperate and to keep their piece. Fewer than <i>K</i> learn nothing.</td></tr>
+      </tbody>
+    </table>
+    <p>Splitting is the one that works for any secret, not just one wallet: the seed phrase, the hardware wallet PIN, the exchange 2FA backup codes and a note saying which coins are where.</p>
+
+    <h2>How splitting works</h2>
+    <p>It's called <a href="/shamir-secret-sharing">Shamir secret sharing</a>, and it's maths rather than trust. You pick a threshold, for example 3 of 5. The key is turned into five shares. Any three rebuild it exactly; two, or one, reveal <b>nothing at all</b> about it, not even a single character. So your brother can't open it alone, a burglar who finds one share gets nothing, and your family can still get in if two of the five shares are lost.</p>
+
+    <h2>A plan you can set up in an afternoon</h2>
+    <ol>
+      <li><b>Write the instructions.</b> Which wallets, which exchanges, which coins, and what you want to happen. Plain language, as if to someone who has never used crypto.</li>
+      <li><b>Seal the seed phrase and the instructions together</b> in an encrypted vault, and split its key 3 of 5 (or 2 of 3 for a smaller family).</li>
+      <li><b>Give one share to each person,</b> printed as a recovery kit page, and tell them what it is. A spouse, adult children, a sibling, a close friend, your lawyer. Mix people who don't all live in one house.</li>
+      <li><b>Keep the encrypted vault in two places</b> nobody can lose at once: your own cloud drive, and a USB stick with the shares. The vault file alone is useless without enough shares.</li>
+      <li><b>Run a recovery drill.</b> Check that the shares actually rebuild the key before you need them to. Then repeat once a year, or whenever you change wallets.</li>
+      <li><b>Mention it in your will</b>: "My digital assets are in an encrypted vault. My executor will find the instructions in the recovery kit held by…". No phrase, no keys.</li>
+    </ol>
+
+    <h2>Doing it with Zero-Trust Vault</h2>
+    <p>Zero-Trust Vault does steps 2 to 5 in the browser, for free. It encrypts the seed phrase on your own device (nothing is sent anywhere), splits the key into shares, prints a one-page recovery kit for each person, and has a <b>Verify</b> tab for drills that never decrypts anything. If someone hands back a forged share, it names it and still opens from the honest ones. It also runs as a single offline file, so your family can open the vault even if this website no longer exists.</p>
+    <p>Legacy (a paid plan, opening soon) adds the last piece: if you stop checking in, it emails your trustees their instructions automatically.</p>
+    <p><a class="btn primary" href="/app/">Seal a vault, free</a></p>
+
+    <h2>Common questions</h2>
+    <h3>What if one of my trustees dies or loses their share?</h3>
+    <p>That's what the threshold is for. With 3 of 5, any two shares can be lost. If you lose one, re-key the vault and hand out new shares; the old ones then stop working.</p>
+    <h3>Can my trustees team up and take it early?</h3>
+    <p>If enough of them agree, yes, and no scheme can prevent that. Choose people who wouldn't, and set the threshold so that it takes more than one household to reach it.</p>
+    <h3>Is this a legal will?</h3>
+    <p>No. It's a technical tool that makes the keys recoverable. Who is legally entitled to the assets is a question for your will and a lawyer where you live.</p>
+
+    <p class="muted">Related: <a href="/seed-phrase-backup">How to back up a seed phrase safely</a> · <a href="/shamir-secret-sharing">Shamir secret sharing, explained</a> · <a href="/security">What we can and can't protect you from</a></p>
+  </main>
+  <footer><div class="wrap"><span>© 2026 Zero-Trust Vault</span><nav aria-label="Legal"><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/security">Security</a><a href="https://github.com/shrestha-droid/zero-trust-vault-v2" rel="noopener">Source</a><a href="/">Home</a></nav></div></footer>
+</body>
+</html>
