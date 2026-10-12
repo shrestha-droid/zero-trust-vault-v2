@@ -312,8 +312,17 @@
           <h2 id="verdict-title">Waiting for shards</h2>
           <p id="verdict-sub" class="hint">Results appear here as you add shards.</p>
           <ul class="chips" id="verify-chips"></ul>
+          <div id="verify-confirm-wrap" hidden>
+            <button class="btn primary sm" id="verify-confirm" type="button"><i data-icon="check"></i><span>Confirm I still hold this</span></button>
+            <p class="hint">Holding a shard for someone? This tells them it's safe. Only a one-way fingerprint is sent, never the shard.</p>
+          </div>
         </article>
       </div>
+      <article class="card custody" id="custody-card" hidden>
+        <div class="card-head"><i data-icon="shield"></i><h2>Shard check-ins</h2></div>
+        <p class="hint">The people holding your shards confirm here once in a while that they still have them. If too few are confirmed, re-key before it's too late.</p>
+        <div id="custody-list"></div>
+      </article>
     </section>
 
     <!-- ============ LEGACY ============ -->
@@ -499,6 +508,7 @@
     </header>
     <div class="callout warn" id="sealed-warn"><i data-icon="alert"></i><div><strong>Save your shards now.</strong> They are shown once. Nobody, including us, can recover them. Give each shard to a different person or place.</div></div>
     <div class="shard-grid" id="shard-grid"></div>
+    <div class="callout info upsell" id="sealed-custody" hidden><i data-icon="shield"></i><div><strong>Know your shards are still out there.</strong> Turn on check-ins: holders confirm once a year at <span id="sealed-custody-url"></span>, and you see which shards are safe. Only one-way fingerprints are stored.</div><button class="btn ghost sm" id="sealed-custody-btn" type="button">Turn on check-ins</button></div>
     <div class="callout info upsell" id="sealed-upsell" hidden><i data-icon="hourglass"></i><div><strong>Make sure they'll find it.</strong> With Legacy, if you ever go silent, your trustees are told where this is and how to open it.</div><button class="btn ghost sm" id="sealed-upsell-btn" type="button">Set up Legacy</button></div>
     <footer class="sheet-foot">
       <button class="btn ghost" id="dl-vault"><i data-icon="file"></i>Download .vault</button>

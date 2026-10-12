@@ -3,10 +3,10 @@ import qrcode from 'qrcode-generator';
 import { cleanCode, isEmail } from './auth';
 import * as direct from './crypto';
 import {
-  describeSlots, forgedShards, fromB64, fromB64url, MAX_BYTES, parseShard, parseVaultFile, rand, shardTokens, toB64, toB64url, VaultError,
+  custodyProof, custodyVerifier, describeSlots, forgedShards, fromB64, fromB64url, MAX_BYTES, parseShard, parseVaultFile, rand, shardTokens, toB64, toB64url, VaultError,
   type Header, type Plain, type Policy, type Shard, type SlotType, type Unlock, type VaultFile,
 } from './crypto';
-import { airGap, billing, cloud, cloudConfigured, drive, legacy, local, type LegacyInput, type LegacyPlan, type Plan } from './storage';
+import { airGap, billing, cloud, cloudConfigured, custody, drive, legacy, local, type LegacyInput, type LegacyPlan, type Plan } from './storage';
 import type { Api } from './worker';
 import CryptoWorker from './worker?worker&inline';
 
@@ -331,6 +331,7 @@ function show(tab: Tab) {
   if (tab === 'open') void refreshPick();
   if (tab === 'settings') void refreshSettings();
   if (tab === 'legacy') void renderLegacy();
+  if (tab === 'verify') void renderCustody();
   if (tab === 'seal') { void refreshDest(); refreshPasskeyMethod(); }
   window.scrollTo({ top: 0 });
 }
@@ -679,6 +680,8 @@ function showSealed(file: VaultFile, shards: string[], dest: string, saveError?:
   $('dl-shards').hidden = $('print-kit').hidden = !shards.length;
   // The moment Legacy matters most: they just made something someone else must be able to find.
   $('sealed-upsell').hidden = !(cloudConfigured && !airGap.active && !plan.pro);
+  $('sealed-custody').hidden = !(shards.length && custody.available);
+  $('sealed-custody-url').textContent = CHECK_URL;
   if (!shards.length) sealed.saved = true;
   sealedDialog.showModal();
 }
@@ -713,9 +716,22 @@ async function retireOld(old: NonNullable<Rekey>) {
       if (hit) await drive.remove(hit.fileId);
     } else await (old.where === 'local' ? local.remove(old.id) : cloud.remove(old.id));
     toast('Old vault deleted. Its shards no longer open anything.');
+    if (custody.available && (await cloud.session().catch(() => null))) await custody.remove(old.id).catch(() => undefined);
   } catch (e) { fail(e); }
 }
 $('sealed-done').addEventListener('click', closeSealed);
+$('sealed-custody-btn').addEventListener('click', (e) => busy(e.currentTarget as HTMLButtonElement, 'Turning on…', async () => {
+  const cur = sealed;
+  if (!cur) return;
+  if (!(await cloud.session().catch(() => null))) {
+    openAuth();
+    throw new VaultError('Sign in first, then press "Turn on check-ins" again. Your shards stay on this screen.');
+  }
+  const shards = await Promise.all(cur.shards.map(parseShard));
+  await custody.enroll(await Promise.all(shards.map(async (s) => ({ vault_id: s.id, idx: s.i, k: s.k, n: s.n, verifier: await custodyVerifier(await custodyProof(s)) }))));
+  $('sealed-custody').hidden = true;
+  toast(`Check-ins are on. Track them under Verify; the print-out tells holders where to go.`);
+}));
 $('sealed-upsell-btn').addEventListener('click', async () => { await closeSealed(); if (!sealedDialog.open) show('legacy'); });
 sealedDialog.addEventListener('cancel', (e) => { e.preventDefault(); void closeSealed(); });
 window.addEventListener('beforeunload', (e) => { if (sealed && !sealed.saved) e.preventDefault(); });
@@ -740,7 +756,8 @@ function printKit(file: VaultFile, shards: string[]) {
       h('li', {}, `Collect ${shamir!.k} different shards from their holders${both ? ', plus the passphrase' : ''}.`),
       h('li', {}, 'Open Zero-Trust Vault (the website, or the offline file zero-trust-vault.html if the website is gone) and go to Open.'),
       h('li', {}, 'Load the vault, then scan each QR code with "Scan QR" (or paste the text), and press Open vault. Typos and forged shards are detected automatically.')),
-    h('p', {}, `Keep this page private. On its own it reveals nothing, but together with ${shamir!.k - 1} other shard${shamir!.k > 2 ? 's' : ''}${both ? ' and the passphrase' : ''} it unlocks the vault.`)));
+    h('p', {}, `Keep this page private. On its own it reveals nothing, but together with ${shamir!.k - 1} other shard${shamir!.k > 2 ? 's' : ''}${both ? ' and the passphrase' : ''} it unlocks the vault.`),
+    custody.available ? h('p', {}, `Once a year, confirm you still hold this shard at ${CHECK_URL} (scan the code above). Only a one-way fingerprint is sent, never the shard.`) : ''));
   $('print-root').replaceChildren(...pages);
   window.addEventListener('afterprint', () => $('print-root').replaceChildren(), { once: true });
   window.print();
@@ -1199,6 +1216,7 @@ dropzone($('import-input').parentElement!, async (files) => {
 // ================= VERIFY =================
 const verifyPaste = $<HTMLTextAreaElement>('verify-paste');
 let verifyGen = 0;
+let verifyGood: Shard[] = []; // the one set being verified, offered for check-in
 async function runVerify() {
   const gen = ++verifyGen;
   const parsed = await parseTokens(verifyPaste.value);
@@ -1216,6 +1234,8 @@ async function runVerify() {
       ? h('li', { class: 'chip bad', title: 'Valid checksum, but its share does not fit the others' }, icon('alert'), `#${p.shard.i}/${p.shard.n} · forged`)
       : h('li', { class: 'chip' }, icon('check'), `#${p.shard.i}/${p.shard.n} · ${p.shard.id.slice(0, 6)}`)));
   renderChips();
+  verifyGood = [];
+  $('verify-confirm-wrap').hidden = true;
   if (!parsed.length) return set('idle', 'shield', 'Waiting for shards', 'Results appear here as you add shards.');
 
   const good = parsed.flatMap((p) => (p.shard ? [p.shard] : []));
@@ -1225,6 +1245,9 @@ async function runVerify() {
   if (ids.size > 1) return set('bad', 'alert', 'Mixed shard sets', `These shards come from ${ids.size} different vaults. Verify one set at a time.`);
   const { k, n, id } = good[0];
   const have = new Set(good.map((s) => s.i)).size;
+  verifyGood = good;
+  $('verify-confirm-wrap').hidden = !custody.available;
+  $('verify-confirm').querySelector('span')!.textContent = have === 1 ? `Confirm I still hold shard #${good[0].i}` : `Confirm I still hold these ${have} shards`;
   const damagedNote = damaged ? ` ${plural(damaged, 'damaged shard')} ignored.` : '';
   if (have < k) return set('partial', 'shard', `${have} of ${k} shards`, `Each one passes its checksum. Add ${k - have} more from this set to confirm recovery works.${damagedNote}`);
   try {
@@ -1243,6 +1266,66 @@ async function runVerify() {
   }
 }
 verifyPaste.addEventListener('input', () => void runVerify());
+$('verify-confirm').addEventListener('click', (e) => busy(e.currentTarget as HTMLButtonElement, 'Confirming…', async () => {
+  const shards = verifyGood;
+  if (!shards.length) return;
+  const done = await custody.confirm(shards);
+  if (!done.length) {
+    toast(`Nothing to confirm: whoever gave you ${shards.length > 1 ? 'these shards' : 'this shard'} hasn't turned on check-ins for ${shards.length > 1 ? 'them' : 'it'}. Nothing was stored.`, 'error');
+    return;
+  }
+  toast(`Confirmed shard${done.length > 1 ? 's' : ''} ${listIdx(done)} of vault ${shards[0].id}. The owner can now see ${done.length > 1 ? "they're" : "it's"} safe. Thank you.`);
+  log(`Check-in: confirmed ${listIdx(done)} for ${shards[0].id}`);
+  void renderCustody();
+}));
+
+// ---- Shard check-ins: what the owner sees ----
+const CHECK_URL = `${location.origin}/check`;
+const YEAR = 365 * 86_400_000;
+let custodyGen = 0;
+async function renderCustody() {
+  const gen = ++custodyGen;
+  const card = $('custody-card');
+  const session = custody.available ? await cloud.session().catch(() => null) : null;
+  let rows: Awaited<ReturnType<typeof custody.list>> = [];
+  if (session) try { rows = await custody.list(); } catch { /* backend not migrated yet */ }
+  if (gen !== custodyGen) return;
+  card.hidden = !session;
+  if (!session) return;
+  const vaults = [...new Set(rows.map((r) => r.vault_id))];
+  if (!vaults.length) {
+    $('custody-list').replaceChildren(h('p', { class: 'hint' }, 'No vault has check-ins yet. Turn them on right after sealing a vault, while its shards are on screen.'));
+    return;
+  }
+  const items = await Promise.all(vaults.map(async (id) => {
+    const set = rows.filter((r) => r.vault_id === id);
+    const { k, n } = set[0];
+    const label = (await local.get(id).catch(() => undefined))?.h.label;
+    const fresh = (r?: { confirmed_at: string | null }) => Boolean(r?.confirmed_at && Date.now() - Date.parse(r.confirmed_at) < YEAR);
+    const ok = set.filter(fresh).length;
+    const chips = Array.from({ length: n }, (_, j) => {
+      const r = set.find((x) => x.idx === j + 1);
+      if (!r) return h('li', { class: 'chip dim' }, `#${j + 1} · not tracked`);
+      if (!r.confirmed_at) return h('li', { class: 'chip dim' }, icon('clock'), `#${j + 1} · not yet`);
+      return h('li', { class: `chip${fresh(r) ? '' : ' bad'}` }, icon(fresh(r) ? 'check' : 'alert'), `#${j + 1} · ${new Date(r.confirmed_at).toLocaleDateString()}`);
+    });
+    const status = ok >= k
+      ? h('p', { class: 'hint ok-text' }, `${ok} of ${n} shards confirmed this year. Opening needs ${k}.`)
+      : h('p', { class: 'hint warn-text' }, `${ok} of ${n} confirmed this year, and opening needs ${k}. Ask the holders to check in; if shards are lost, re-key this vault.`);
+    const request = `Hi! Could you check that you still have the recovery shard I gave you (vault ${id})? Open ${CHECK_URL} and scan or paste it. It takes a minute, the shard never leaves your device, and only a one-way fingerprint is sent.`;
+    return h('div', { class: 'custody-vault' },
+      h('strong', {}, label || 'Untitled vault', h('small', {}, id)),
+      status,
+      h('ul', { class: 'chips' }, ...chips),
+      h('div', { class: 'row' },
+        button('Copy check-in request', 'copy', () => void copy(request, 'Request copied. Send it to each holder.')),
+        button('Stop tracking', 'x', async () => {
+          if (!(await confirmDialog('Stop check-ins for this vault?', 'Holders will no longer be able to confirm their shards. The vault and its shards are not affected.', 'Stop tracking'))) return;
+          try { await custody.remove(id); toast('Check-ins stopped.'); void renderCustody(); } catch (err) { fail(err); }
+        })));
+  }));
+  if (gen === custodyGen) $('custody-list').replaceChildren(...items);
+}
 dropzone($('verify-drop'), (files) => appendText(verifyPaste, files, () => void runVerify()));
 $('verify-clear').addEventListener('click', () => { verifyPaste.value = ''; void runVerify(); });
 
@@ -1754,6 +1837,7 @@ if (initial === 'checkin=ok') { show('legacy'); toast("You're checked in. Thanks
 else if (initial === 'checkin=expired') { show('legacy'); toast('That check-in link has expired. Press "I\'m still here" below instead.', 'error'); }
 else if (initial === 'upgraded') { show('settings'); void awaitUpgrade(); }
 else if (initial === 'signin') { show('seal'); openAuth(); }
+else if (initial === 'check') { show('verify'); toast('Holding a shard for someone? Scan or paste it here, then press Confirm.'); }
 else show(TABS.includes(initial as Tab) ? (initial as Tab) : 'seal');
 void refreshPlan();
 void silentCheckin();

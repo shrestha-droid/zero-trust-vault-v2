@@ -38,6 +38,7 @@ The whole app builds into **one self-contained HTML file** with no CDN, no exter
 - **Verify tab:** a recovery drill without the vault. It checks checksums and set membership, rebuilds the key in memory, matches it against the fingerprint, and flags forged shards.
 - **Printable recovery kit:** one page per shard with a QR code, the shard text, and instructions that state exactly what else is needed.
 - **In-app QR scanning:** the native BarcodeDetector where available, with jsQR as the fallback (iOS Safari).
+- **Shard check-ins:** holders confirm once in a while at `/check` that they still have their shard; the owner sees which are confirmed and is warned when fewer than *K* are. The browser sends only a domain-separated hash of the share, and the server stores a hash of that.
 - **Re-key:** re-seal an opened vault under a new key and new shards, then delete the old record so the old shards become useless.
 - **Self-verifying shards:** a per-shard checksum catches typos, and a key fingerprint catches mixed-up sets.
 

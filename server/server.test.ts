@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { makeDeleteAccountHandler } from './account.js';
+import { makeCustodyHandler, verifierOf } from './custody.js';
+import { custodyProof, custodyVerifier, parseShard, seal } from '../src/crypto.js';
 import { makeWaitlistHandler } from './waitlist.js';
 import { entitlementFrom, makeBillingHandler, makeCheckoutHandler, refundTarget, signStandard, verifyDodo, type EntitlementRow } from './billing.js';
 import {
@@ -327,5 +329,24 @@ describe('delete account', () => {
     const { h, log } = make({ failAt: 'vaults' });
     expect((await h(req())).status).toBe(500);
     expect(log.some((l) => l.startsWith('user:'))).toBe(false);
+  });
+});
+
+describe('shard check-ins', () => {
+  it('server verifier matches the client; only the shard holder can confirm; malformed input rejected', async () => {
+    const { shards } = await seal({ meta: { kind: 'text', name: '', type: 'text/plain', size: 2 }, data: new TextEncoder().encode('hi') }, { shards: { k: 2, n: 3 } });
+    const [s1, s2] = await Promise.all(shards.slice(0, 2).map(parseShard));
+    const p1 = await custodyProof(s1);
+    expect(await verifierOf(p1)).toBe(await custodyVerifier(p1));
+    expect(p1).not.toBe(await custodyProof(s2));
+    const stored = new Map([[`${s1.id}:1`, await custodyVerifier(p1)]]); // owner enrolled shard 1 only
+    const stamped: string[] = [];
+    const handler = makeCustodyHandler({ confirm: async (id, i, ver) => { const ok = stored.get(`${id}:${i}`) === ver; if (ok) stamped.push(`${id}:${i}`); return ok; } });
+    const call = async (body: unknown) => { const r = await handler(new Request('https://x/api/custody-check', { method: 'POST', body: JSON.stringify(body) })); return { status: r.status, body: await r.json() }; };
+    expect(await call({ vault_id: s1.id, shards: [{ i: 1, proof: p1 }, { i: 2, proof: await custodyProof(s2) }] })).toEqual({ status: 200, body: { confirmed: [1] } });
+    expect(await call({ vault_id: s1.id, shards: [{ i: 1, proof: await verifierOf(p1) }] })).toEqual({ status: 200, body: { confirmed: [] } }); // a leaked verifier is not a proof
+    expect(stamped).toEqual([`${s1.id}:1`]);
+    for (const bad of [{}, { vault_id: 'x', shards: [] }, { vault_id: s1.id, shards: [{ i: 1, proof: 'zz' }] }, { vault_id: s1.id, shards: Array(17).fill({ i: 1, proof: p1 }) }]) expect((await call(bad)).status).toBe(400);
+    expect((await handler(new Request('https://x/api/custody-check'))).status).toBe(405);
   });
 });

@@ -21,6 +21,11 @@
       "source": "/app",
       "destination": "/app/",
       "permanent": true
+    },
+    {
+      "source": "/check",
+      "destination": "/app/#check",
+      "permanent": false
     }
   ],
   "crons": [

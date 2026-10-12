@@ -1,6 +1,6 @@
 import { createClient, type Session, type SupabaseClient } from '@supabase/supabase-js';
 import { friendlyAuthError } from './auth';
-import { isId, parseVaultFile, VaultError, type VaultFile } from './crypto';
+import { custodyProof, isId, parseVaultFile, VaultError, type Shard, type VaultFile } from './crypto';
 import { authUrl, makeDrive, parseTokenHash, type DriveToken } from './gdrive';
 
 // ---------- Air-gap: a browser-enforced network kill switch ----------
@@ -235,6 +235,36 @@ export const legacy = {
     const { data, error } = await sb().rpc('legacy_checkin');
     raise(error);
     return (data as string | null) ?? null;
+  },
+};
+
+// ---------- Shard check-ins (custody): holders confirm they still have their shard ----------
+export interface CustodyRow { vault_id: string; idx: number; k: number; n: number; confirmed_at: string | null }
+export interface CustodyEnroll { vault_id: string; idx: number; k: number; n: number; verifier: string }
+
+export const custody = {
+  /** Needs the hosted site: holders post proofs to our /api, which the offline file can't reach. */
+  get available() { return cloudConfigured && !locked && /^https?:$/.test(location.protocol); },
+  async list(): Promise<CustodyRow[]> {
+    const { data, error } = await sb().from('custody').select('vault_id, idx, k, n, confirmed_at').order('vault_id').order('idx');
+    raise(error);
+    return (data ?? []) as CustodyRow[];
+  },
+  async enroll(rows: CustodyEnroll[]) {
+    const { error } = await sb().from('custody').insert(rows);
+    if (error?.code === '23505') return; // already on
+    if (error && /row-level security/i.test(error.message)) throw new VaultError('The Free plan includes check-ins for one vault. Pro covers every vault.');
+    raise(error);
+  },
+  async remove(vaultId: string) { raise((await sb().from('custody').delete().eq('vault_id', vaultId)).error); },
+  /** Sends one proof per shard (never the shard). Returns the shard numbers the owner had enrolled. */
+  async confirm(shards: Shard[]): Promise<number[]> {
+    if (locked) throw new VaultError('Air-gap is on — the network is blocked in this tab.');
+    const body = { vault_id: shards[0].id, shards: await Promise.all(shards.map(async (s) => ({ i: s.i, proof: await custodyProof(s) }))) };
+    const res = await fetch('/api/custody-check', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    const out = await res.json().catch(() => ({})) as { confirmed?: number[]; error?: string };
+    if (!res.ok || !Array.isArray(out.confirmed)) throw new VaultError(out.error ?? 'Check-in is unavailable right now.');
+    return out.confirmed;
   },
 };
 

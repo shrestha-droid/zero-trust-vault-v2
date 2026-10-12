@@ -715,3 +715,10 @@ h2, .card h2 { font-family: var(--serif); font-weight: 500; font-size: 1.3rem; l
 .step-n { font-family: var(--serif); font-style: italic; font-size: 1rem; color: var(--accent); border-color: var(--line-strong); }
 .tabs button[aria-selected="true"] { background: var(--surface-solid); }
 .net-chip, .btn, .seg, .tabs { border-radius: var(--radius); }
+
+/* Shard check-ins */
+#verify-confirm-wrap { display: grid; justify-items: center; gap: 0.4rem; }
+.custody { margin-top: 1.25rem; }
+.custody-vault { border-top: 1px solid var(--line); padding-top: 0.9rem; display: grid; gap: 0.55rem; }
+.custody-vault strong small { color: var(--fg-3); font: 400 0.78rem var(--mono); margin-left: 0.4rem; }
+.custody-vault .row { gap: 0.4rem; flex-wrap: wrap; }

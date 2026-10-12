@@ -111,6 +111,14 @@ async function keyCommit(dataKey: Bytes, id: string): Promise<string> {
 /** v3 per-shard commitment (128-bit): reveals nothing usable about the share, which is 32+ random bytes. */
 const shareCommit = async (id: string, i: number, share: Uint8Array) => hex(await sha256(enc.encode(`ztv3-share:${id}:${i}:`), share)).slice(0, 32);
 
+/**
+ * Shard check-ins: a holder proves they still have share i by sending this instead of the share.
+ * Domain-separated from shareCommit, so it can't be computed from the vault file, only from the share.
+ */
+export const custodyProof = async (s: Shard) => hex(await sha256(enc.encode(`ztv-custody:${s.id}:${s.i}:`), s.share));
+/** What the server stores per shard: SHA-256 of the proof, so a database leak can't be replayed as check-ins. */
+export const custodyVerifier = async (proof: string) => hex(await sha256(enc.encode(proof)));
+
 /** Indices of shards that don't match this vault's commitments (v3). Empty for v2 vaults (no commitments). */
 export async function forgedShards(h: Pick<Header, 'id' | 'shamir'>, shards: Shard[]): Promise<number[]> {
   const commits = h.shamir?.commits;

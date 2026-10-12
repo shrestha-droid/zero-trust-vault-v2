@@ -46,7 +46,7 @@
     </ul>
 
     <h2>What we can see</h2>
-    <p>Encryption happens on your device before anything is stored. Our servers only ever hold locked files. The vault's id, creation time, optional label, which unlock methods exist, and approximate size are visible to whoever holds the file. <b>The label is not encrypted, so never write what is inside it</b> ("Binance seed" tells a thief exactly what to look for). If you use Legacy, we also hold your trustees' names and emails, your message to them, and at most one escrowed shard, which on its own opens nothing.</p>
+    <p>Encryption happens on your device before anything is stored. Our servers only ever hold locked files. The vault's id, creation time, optional label, which unlock methods exist, and approximate size are visible to whoever holds the file. <b>The label is not encrypted, so never write what is inside it</b> ("Binance seed" tells a thief exactly what to look for). If you use Legacy, we also hold your trustees' names and emails, your message to them, and at most one escrowed shard, which on its own opens nothing. If you turn on shard check-ins, we store per shard a hash of a hash of the share (SHA-256 of a domain-separated SHA-256), and holders send the inner hash to confirm. Neither reveals anything about the share, and neither can be computed from the vault file.</p>
 
     <h2>What this does not protect against</h2>
     <ul>

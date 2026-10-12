@@ -32,6 +32,7 @@ Smallest money-making launch: Vercel + Google Drive + Supabase Auth, then add Do
    - `supabase/migrations/0002_billing_legacy.sql`
    - `supabase/migrations/0003_waitlist.sql`
    - `supabase/migrations/0004_provider_neutral_billing.sql`
+   - `supabase/migrations/0005_custody.sql` (shard check-ins)
 2. Remove anything left over from v1. In the SQL editor:
    ```sql
    select policyname, cmd from pg_policies where schemaname = 'storage' and tablename = 'objects';

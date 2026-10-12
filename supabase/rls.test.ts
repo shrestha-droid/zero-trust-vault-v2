@@ -43,7 +43,7 @@ beforeAll(async () => {
     alter default privileges in schema public grant all on tables to anon, authenticated; -- Supabase's default
     insert into auth.users values ('${A}'), ('${B}');
   `);
-  for (const f of ['0001_vault_store.sql', '0002_billing_legacy.sql', '0003_waitlist.sql']) await db.exec(readFileSync(new URL(`./migrations/${f}`, import.meta.url), 'utf8'));
+  for (const f of ['0001_vault_store.sql', '0002_billing_legacy.sql', '0003_waitlist.sql', '0005_custody.sql']) await db.exec(readFileSync(new URL(`./migrations/${f}`, import.meta.url), 'utf8'));
 }, 60_000);
 
 describe('cloud storage', () => {
@@ -117,5 +117,30 @@ describe('waitlist', () => {
     for (const bad of [`'Upper@Example.com'`, `'no-at-sign'`, `'a b@c.co'`, `'<x>@y.co'`]) await expect(service(`insert into public.waitlist (email) values (${bad})`)).rejects.toThrow(/check/);
     await expect(service(`insert into public.waitlist (email, country) values ('c@example.com', 'india')`)).rejects.toThrow(/check/);
     expect((await service('select count(*)::int as n from public.waitlist')).rows[0]).toEqual({ n: 1 });
+  });
+});
+
+describe('shard check-ins (custody)', () => {
+  const v = (c: string) => c.repeat(64);
+  const enroll = (uid: string, vault: string, idx: number, verifier: string) =>
+    as(uid, 'insert into public.custody (vault_id, idx, k, n, verifier) values ($1, $2, 2, 3, $3)', [vault, idx, verifier]);
+  it('free tracks one vault, Pro every vault; owners cannot stamp confirmations; private; constraints hold', async () => {
+    expect(await isPro(B)).toBe(false);
+    expect((await enroll(B, '00000000000000b1', 1, v('1'))).error).toBeUndefined();
+    expect((await enroll(B, '00000000000000b1', 2, v('2'))).error).toBeUndefined(); // more shards of the same vault: fine
+    expect((await enroll(B, '00000000000000b2', 1, v('3'))).error).toMatch(RLS); // a second vault needs Pro
+    await service(`insert into public.entitlements (user_id, plan, status) values ($1, 'pro', 'lifetime')`, [B]);
+    expect((await enroll(B, '00000000000000b2', 1, v('3'))).error).toBeUndefined();
+    expect((await as(B, 'update public.custody set confirmed_at = now()')).error).toMatch(DENIED);
+    expect((await as(B, `insert into public.custody (user_id, vault_id, idx, k, n, verifier) values ($1, '00000000000000b3', 1, 2, 3, $2)`, [A, v('4')])).error).toMatch(RLS);
+    expect((await as(A, 'select * from public.custody')).rows).toHaveLength(0);
+    expect((await as(null, 'select * from public.custody')).error).toMatch(DENIED);
+    expect((await as(B, 'select vault_id from public.custody')).rows).toHaveLength(3);
+    expect((await enroll(B, '00000000000000b4', 4, v('5'))).error).toMatch(/check/); // idx > n
+    expect((await enroll(B, '00000000000000b4', 1, 'not-hex')).error).toMatch(/check/);
+    expect((await as(B, `delete from public.custody where vault_id = '00000000000000b1' returning 1`)).rows).toHaveLength(2);
+    // The app enrolls all of a vault's shards in one statement; a free account must be allowed that.
+    expect(await isPro(A)).toBe(false);
+    expect((await as(A, `insert into public.custody (vault_id, idx, k, n, verifier) values ('00000000000000a1', 1, 2, 3, $1), ('00000000000000a1', 2, 2, 3, $2), ('00000000000000a1', 3, 2, 3, $3)`, [v('6'), v('7'), v('8')])).error).toBeUndefined();
   });
 });

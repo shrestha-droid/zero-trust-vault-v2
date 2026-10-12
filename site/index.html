@@ -187,7 +187,7 @@
             <img class="note-rosette" src="/art/rosette-faint.svg" alt="">
             <div class="note-face"><span class="label">Free</span><strong>%PRICE_FREE%</strong><span class="serial">Nº F-000000</span></div>
           </div>
-          <ul><li>Unlimited vaults on your devices</li><li>Coupons, passphrase, two-factor, passkeys</li><li>Your own Google Drive as storage</li><li>Recovery kits, drills, QR scanning</li><li>Offline app and air-gap mode</li></ul>
+          <ul><li>Unlimited vaults on your devices</li><li>Coupons, passphrase, two-factor, passkeys</li><li>Your own Google Drive as storage</li><li>Recovery kits, drills, QR scanning</li><li>Coupon check-ins for one vault</li><li>Offline app and air-gap mode</li></ul>
           <a class="btn ghost block" href="/app/">Start free</a>
         </article>
         <article class="note-col featured reveal">
@@ -196,7 +196,7 @@
             <img class="note-rosette" src="/art/rosette-faint-red.svg" alt="">
             <div class="note-face"><span class="label">Pro · yearly</span><strong>%PRICE_YEARLY%</strong><span class="serial">Nº P-%SERIAL_YEARLY%</span></div>
           </div>
-          <ul><li>Everything in Free</li><li>Unlimited encrypted cloud vaults</li><li>Legacy: the dead man's switch</li><li>Up to 10 trustees and an escrow coupon</li><li>Releases even if billing lapses</li></ul>
+          <ul><li>Everything in Free</li><li>Unlimited encrypted cloud vaults</li><li>Coupon check-ins on every vault</li><li>Legacy: the dead man's switch</li><li>Up to 10 trustees and an escrow coupon</li><li>Releases even if billing lapses</li></ul>
           <a class="btn block" href="%PRO_HREF%">%PRO_LABEL%</a>
         </article>
         <article class="note-col reveal">
@@ -222,7 +222,7 @@
         <details><summary><i>Q.</i>Can you see my secrets?</summary><p><i>A.</i>No. Encryption happens on your device before anything is stored, and the keys never leave it. Our servers only ever hold locked files, plus, if you use Legacy, your trustees' contacts, your message to them, and at most one coupon, which on its own reveals nothing. The one thing visible is the optional label you type, so never write what's inside it.</p></details>
         <details><summary><i>Q.</i>What if Zero-Trust Vault shuts down?</summary><p><i>A.</i>Your vaults still open. Keep the offline app (one HTML file) next to your coupons: it needs no server and no internet, and the file format is documented, so anyone can re-implement it. The one thing that needs us running is Legacy's automatic emails, so give your trustees a printed recovery kit too.</p></details>
         <details><summary><i>Q.</i>What happens to Legacy if my payment fails after I'm gone?</summary><p><i>A.</i>It still fires. Pro is needed to set up or change a plan, but an armed plan is always delivered. A deceased person's card eventually fails, and Legacy is designed around that.</p></details>
-        <details><summary><i>Q.</i>What if a coupon is lost, or forged?</summary><p><i>A.</i>With "3 of 5" you can lose two safely. If someone hands over a tampered coupon, the app tells you which one and opens the vault from the rest. You can re-key at any time to issue fresh coupons.</p></details>
+        <details><summary><i>Q.</i>What if a coupon is lost, or forged?</summary><p><i>A.</i>With "3 of 5" you can lose two safely. If someone hands over a tampered coupon, the app tells you which one and opens the vault from the rest. You can re-key at any time to issue fresh coupons. To find out about a lost coupon before it matters, turn on check-ins: holders confirm once a year at <a href="/check">/check</a> that they still have theirs, and you see which are safe. Only a one-way fingerprint is sent, never the coupon.</p></details>
         <details><summary><i>Q.</i>Has it been audited?</summary><p><i>A.</i>The secret-sharing library (<a href="https://www.npmjs.com/package/shamir-secret-sharing">shamir-secret-sharing</a>) was audited by <a href="https://cure53.de/audit-report_privy-sss-library.pdf">Cure53</a> and <a href="https://github.com/Zellic/publications/blob/master/Privy_Shamir_Secret_Sharing_-_Zellic_Audit_Report.pdf">Zellic</a>. The app itself hasn't been third-party audited yet, so treat it as beta and keep a backup of anything critical. We'll publish the review on the <a href="/security">security page</a> when it happens.</p></details>
         <details><summary><i>Q.</i>Do I need an account?</summary><p><i>A.</i>No. Everything works without one. Sign in with Google, Apple or email only for vaults synced across devices or for Legacy. You can also keep vaults in your own Google Drive.</p></details>
         <details><summary><i>Q.</i>Does it work on my phone?</summary><p><i>A.</i>Yes. Open it in your browser and choose "Add to Home Screen". It works offline, scans coupons with the camera, and supports Face ID and fingerprint passkeys.</p></details>
