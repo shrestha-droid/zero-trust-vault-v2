@@ -159,11 +159,29 @@ export function makeCheckinHandler(d: { secret: string; appUrl: string; checkin:
   };
 }
 
-export function makeTickHandler(cronSecret: string, run: () => Promise<unknown>) {
+/** A run that throws, or that failed to reach anyone, reports failure to the heartbeat so a human finds out. */
+export function makeTickHandler(cronSecret: string, run: () => Promise<unknown>, beat: (ok: boolean, detail: string) => Promise<void> = async () => {}) {
   return async (req: Request): Promise<Response> => {
     if (!cronSecret || !safeEqual(req.headers.get('authorization') ?? '', `Bearer ${cronSecret}`)) return new Response('Unauthorized', { status: 401 });
-    return Response.json(await run());
+    let result: unknown;
+    try { result = await run(); } catch (e) {
+      const error = e instanceof Error ? e.message : String(e);
+      await beat(false, error);
+      return Response.json({ error }, { status: 500 });
+    }
+    await beat(!((result as { failed?: number })?.failed), JSON.stringify(result));
+    return Response.json(result);
   };
+}
+
+/**
+ * Dead man's switch for the dead man's switch: pings a healthchecks.io-style URL after every tick
+ * (`url` on success, `url/fail` on failure). The monitor emails the operator when a ping fails or never
+ * arrives, e.g. cron stopped, a deploy broke the function, or email delivery is down. Never throws.
+ */
+export async function heartbeat(url: string | undefined, ok: boolean, detail: string, fetchImpl: typeof fetch = fetch): Promise<void> {
+  if (!url) return;
+  await fetchImpl(ok ? url : `${url.replace(/\/+$/, '')}/fail`, { method: 'POST', body: detail.slice(0, 10_000) }).catch(() => undefined);
 }
 
 // ---------- Email delivery (Resend) ----------

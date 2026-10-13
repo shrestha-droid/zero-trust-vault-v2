@@ -1,6 +1,8 @@
+import { execSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { cpSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { landingPages } from './site/pricing.ts';
+import { APP_ENV } from './src/build-env.ts';
 import { defineConfig, loadEnv, type Plugin } from 'vite';
 import { viteSingleFile } from 'vite-plugin-singlefile';
 
@@ -47,6 +49,22 @@ function csp(supabaseUrl?: string, googleDrive = false): Plugin {
   };
 }
 
+/** Publishes what this build was made from, so anyone can rebuild it and compare hashes (see src/build-env.ts). */
+function buildInfo(env: Record<string, string>): Plugin {
+  const commit = (() => {
+    if (env.VERCEL_GIT_COMMIT_SHA || env.GITHUB_SHA) return env.VERCEL_GIT_COMMIT_SHA || env.GITHUB_SHA;
+    try { return execSync('git rev-parse HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch { return null; }
+  })();
+  return {
+    name: 'ztv-build-info',
+    apply: 'build',
+    closeBundle() {
+      const used = Object.fromEntries(APP_ENV.filter((k) => env[k]).map((k) => [k, env[k]]));
+      writeFileSync('dist/app/build-info.json', `${JSON.stringify({ commit, node: process.version, env: used }, null, 2)}\n`);
+    },
+  };
+}
+
 /** Copies the no-JS marketing site (site/) to the output root, filling in the canonical URL. */
 function site(siteUrl: string, flags: { payments: boolean; legacy: boolean }): Plugin {
   return {
@@ -87,7 +105,7 @@ export default defineConfig(({ mode }) => {
     define: { __APP_VERSION__: JSON.stringify(version) },
     build: { outDir: 'dist/app', target: 'es2022', modulePreload: false, reportCompressedSize: false },
     worker: { format: 'es' as const },
-    plugins: [viteSingleFile(), csp(env.VITE_SUPABASE_URL, Boolean(env.VITE_GOOGLE_CLIENT_ID)), site((env.SITE_URL ?? '').replace(/\/+$/, ''), {
+    plugins: [viteSingleFile(), buildInfo(env), csp(env.VITE_SUPABASE_URL, Boolean(env.VITE_GOOGLE_CLIENT_ID)), site((env.SITE_URL ?? '').replace(/\/+$/, ''), {
       // Buy buttons only go to real checkout once checkout is enabled; Legacy only once email can be sent.
       payments: env.VITE_PAYMENTS === '1',
       legacy: env.VITE_PAYMENTS === '1' && Boolean(env.RESEND_API_KEY),

@@ -54,6 +54,7 @@ npm install
 cp .env.example .env   # optional: add Supabase URL + anon key for cloud sync
 npm run dev            # http://localhost:5173
 npm run check          # typecheck + tests + production build → dist/
+npm run e2e            # browser tests of that build (npx playwright install chromium, once)
 ```
 
 `dist/app/index.html` is the entire app; `dist/` also holds the marketing site.

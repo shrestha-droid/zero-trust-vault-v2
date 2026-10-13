@@ -14,3 +14,5 @@ scripts/*
 *.dmg
 *.vault
 LAUNCH-CONTENT.md
+test-results/
+playwright-report/

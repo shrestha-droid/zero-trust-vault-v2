@@ -5,7 +5,7 @@ import { custodyProof, custodyVerifier, parseShard, seal } from '../src/crypto.j
 import { makeWaitlistHandler } from './waitlist.js';
 import { entitlementFrom, makeBillingHandler, makeCheckoutHandler, refundTarget, signStandard, verifyDodo, type EntitlementRow } from './billing.js';
 import {
-  DAY, decide, esc, sendEmail, makeCheckinHandler, makeCheckinToken, makeTickHandler, releaseEmail, runTick, verifyCheckinToken,
+  DAY, decide, esc, heartbeat, sendEmail, makeCheckinHandler, makeCheckinToken, makeTickHandler, releaseEmail, runTick, verifyCheckinToken,
   type Email, type LegacyPlan,
 } from './legacy.js';
 
@@ -230,6 +230,27 @@ describe('legacy tick', () => {
     expect((await h(new Request('https://x'))).status).toBe(401);
     expect(await (await h(new Request('https://x', { headers: { authorization: 'Bearer cron' } }))).json()).toEqual({ ok: true });
     expect((await makeTickHandler('', async () => 1)(new Request('https://x', { headers: { authorization: 'Bearer ' } }))).status).toBe(401);
+  });
+  it('reports every run to the heartbeat: success, partial failure, crash; unauthorized calls never ping', async () => {
+    const beats: [boolean, string][] = [];
+    const beat = async (ok: boolean, d: string) => { beats.push([ok, d]); };
+    const call = (run: () => Promise<unknown>, auth = 'Bearer cron') => makeTickHandler('cron', run, beat)(new Request('https://x', { headers: { authorization: auth } }));
+    expect((await call(async () => ({ reminded: 0, released: 0, failed: 0 }))).status).toBe(200);
+    await call(async () => ({ reminded: 1, released: 0, failed: 2 }));
+    const crash = await call(async () => { throw new Error('db down'); });
+    await call(async () => ({}), 'Bearer nope');
+    expect(crash.status).toBe(500);
+    expect(beats.map(([ok]) => ok)).toEqual([true, false, false]);
+    expect(beats[2][1]).toBe('db down');
+  });
+  it('heartbeat pings url on success and url/fail on failure, skips when unset, swallows network errors', async () => {
+    const hits: string[] = [];
+    const f = (async (u: string) => { hits.push(u); return new Response(''); }) as unknown as typeof fetch;
+    await heartbeat('https://hc.example/abc/', true, 'x', f);
+    await heartbeat('https://hc.example/abc', false, 'x', f);
+    await heartbeat(undefined, false, 'x', f);
+    expect(hits).toEqual(['https://hc.example/abc/', 'https://hc.example/abc/fail']);
+    await expect(heartbeat('https://hc.example/abc', true, 'x', (async () => { throw new Error('offline'); }) as unknown as typeof fetch)).resolves.toBeUndefined();
   });
 });
 

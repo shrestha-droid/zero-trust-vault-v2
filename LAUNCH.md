@@ -101,6 +101,7 @@ Add and verify your domain (DNS records), create an API key, and choose a sender
    | `CHECKIN_SECRET` | another `openssl rand -hex 32` |
    | `RESEND_API_KEY` | Resend API key |
    | `EMAIL_FROM` | `Zero-Trust Vault <legacy@YOUR-DOMAIN>` |
+   | `HEALTHCHECK_URL` | Ping URL from step 6 (monitoring). Optional, but don't sell Legacy without it |
 
 3. **Settings → Domains:** add your domain.
 4. **Plan:** Vercel's Hobby tier is for non-commercial use, so a paid product needs **Vercel Pro**. Cron runs daily, which is all Legacy needs.
@@ -118,7 +119,17 @@ Add and verify your domain (DNS records), create an API key, and choose a sender
 7. To rehearse a release, in Supabase run `update legacy_plans set last_checkin = now() - interval '200 days';`, call the cron URL again, and check the trustee inbox: message, vault link and escrow shard. Then delete that plan.
 8. Cancel the test subscription from Dodo's dashboard and confirm the app shows Free again.
 
-## 6. Before taking real money
+## 6. Monitoring (5 minutes, free)
+
+Legacy only works if the daily job keeps running and email keeps sending. Nothing tells you if either breaks, so set up an outside check:
+
+1. Sign up at <https://healthchecks.io> (free). **Add Check:** name `legacy-tick`, schedule *Simple*, period **1 day**, grace **6 hours**. Under **Integrations**, make sure email goes to an address you read.
+2. Copy the check's ping URL (`https://hc-ping.com/…`) into Vercel as `HEALTHCHECK_URL` and redeploy.
+3. Trigger the job once by hand (the curl in step 5.6). The check turns green.
+
+After every daily run the job pings it, or pings `/fail` if it crashed or couldn't email someone. If a day passes with no ping (cron stopped, a deploy broke the function), healthchecks.io emails you.
+
+## 7. Before taking real money
 
 - Replace every `[BRACKETED]` field in `site/terms.html` and `site/privacy.html`, have them reviewed, and remove the template notes.
 - Switch Dodo to live mode: live products, API key and webhook secret in Vercel, and remove `DODO_ENV`.

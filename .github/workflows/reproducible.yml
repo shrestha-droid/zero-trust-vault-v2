@@ -1,0 +1,48 @@
+name: Reproducible build
+# Rebuilds the app that www.zerotrustvault.in is serving right now, from the exact commit and public settings it
+# publishes in /app/build-info.json, and fails unless both served files match the rebuild byte for byte.
+on:
+  schedule:
+    - cron: '30 3 * * *'
+  workflow_dispatch:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    env:
+      SITE: https://www.zerotrustvault.in
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Read what the site is serving
+        id: info
+        run: |
+          # On a push, wait for Vercel to finish deploying this commit (it takes a minute or two).
+          for i in $(seq 1 60); do
+            curl -fsS "$SITE/app/build-info.json" -o build-info.json
+            commit=$(jq -r .commit build-info.json)
+            if [ "$GITHUB_EVENT_NAME" != push ] || [ "$commit" = "$GITHUB_SHA" ]; then break; fi
+            sleep 15
+          done
+          cat build-info.json
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+          echo "node=$(jq -r '.node | ltrimstr("v") | split(".")[0]' build-info.json)" >> "$GITHUB_OUTPUT"
+          jq -r '.env | to_entries[] | "\(.key)=\(.value)"' build-info.json >> "$GITHUB_ENV"
+      - run: git checkout --detach "${{ steps.info.outputs.commit }}"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ steps.info.outputs.node }}
+      - run: npm ci
+      - run: npx vite build
+      - name: Compare with the served files
+        run: |
+          curl -fsS "$SITE/app/" -o served-app.html
+          curl -fsS "$SITE/app/zero-trust-vault" -o served-offline.html
+          sha256sum dist/app/index.html served-app.html dist/app/zero-trust-vault.html served-offline.html
+          cmp dist/app/index.html served-app.html
+          cmp dist/app/zero-trust-vault.html served-offline.html
+          echo "Reproduced: the served app is exactly what commit ${{ steps.info.outputs.commit }} builds to."

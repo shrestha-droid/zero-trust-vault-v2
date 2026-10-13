@@ -1,5 +1,5 @@
 // Vercel Cron (see vercel.json) calls this daily with `Authorization: Bearer $CRON_SECRET`.
-import { makeTickHandler, runTick, sendEmail, type LegacyPlan } from '../server/legacy.js';
+import { heartbeat, makeTickHandler, runTick, sendEmail, type LegacyPlan } from '../server/legacy.js';
 import { admin, need, site } from '../server/env.js';
 
 const LINK_TTL_S = 30 * 86_400;
@@ -24,6 +24,6 @@ export async function GET(request: Request): Promise<Response> {
       const { error } = await db.from('legacy_plans').update(patch as never).eq('user_id', uid);
       if (error) throw new Error(error.message);
     },
-  }));
+  }), (ok, detail) => heartbeat(process.env.HEALTHCHECK_URL, ok, detail));
   return handler(request);
 }
