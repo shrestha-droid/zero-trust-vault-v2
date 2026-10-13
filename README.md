@@ -22,6 +22,7 @@ The whole app builds into **one self-contained HTML file** with no CDN, no exter
 - **Two-factor vaults:** KEK = HKDF(Shamir secret ‖ Argon2id(passphrase)). Stolen shards alone are useless, and so is a leaked passphrase.
 - **Passkeys (WebAuthn PRF):** the authenticator derives a secret in hardware, with a per-vault salt. Synced passkeys work on every device they sync to (same domain).
 - **Evidence is public:** the [security page](site/security.html) publishes the file format, names the audited library with its report links, and prints the offline app's SHA-256 (computed at build, so it can't drift).
+- **Reproducible builds:** the served app publishes its commit and public build settings at `/app/build-info.json`; a [daily public job](.github/workflows/reproducible.yml) rebuilds it and fails unless the hosted and offline files match byte for byte.
 - **Argon2id** (256 MiB, 2 passes; 64 MiB fallback), with KDF parameters bounds-checked to stop memory-exhaustion headers.
 - **Key-committed** (v3): every unlocking key must match a commitment in the header, closing AES-GCM's multi-key ("invisible salamanders") gap.
 - **Padmé padding** hides exact payload sizes.

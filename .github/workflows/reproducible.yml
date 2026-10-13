@@ -23,7 +23,7 @@ jobs:
         run: |
           # On a push, wait for Vercel to finish deploying this commit (it takes a minute or two).
           for i in $(seq 1 60); do
-            curl -fsS "$SITE/app/build-info.json" -o build-info.json
+            curl -fsS "$SITE/app/build-info.json" -o build-info.json || { sleep 15; continue; }
             commit=$(jq -r .commit build-info.json)
             if [ "$GITHUB_EVENT_NAME" != push ] || [ "$commit" = "$GITHUB_SHA" ]; then break; fi
             sleep 15

@@ -61,7 +61,15 @@
     <p>Zero-Trust Vault is a technical tool. It is not a will and does not give anyone legal authority. Whether a trustee may lawfully access an account or a crypto holding after your death depends on where you live, and exchange terms of service often forbid sharing credentials. Talk to a lawyer about your estate plan, and use this to make the technical side reliable.</p>
 
     <h2>Source code</h2>
-    <p>The whole application is open source under the AGPL-3.0: <a href="https://github.com/shrestha-droid/zero-trust-vault-v2">github.com/shrestha-droid/zero-trust-vault-v2</a>. Read it, build it yourself with <code>npm run build</code>, and compare how it behaves. The test suite, including the attacker scenarios, runs in public on every change. Byte-for-byte reproducible builds (so you could prove the offline file above matches the source) are not guaranteed yet.</p>
+    <p>The whole application is open source under the AGPL-3.0: <a href="https://github.com/shrestha-droid/zero-trust-vault-v2">github.com/shrestha-droid/zero-trust-vault-v2</a>. Read it, build it yourself with <code>npm run build</code>, and compare how it behaves. The test suite, including the attacker scenarios, runs in public on every change. The build is reproducible byte for byte.</p>
+
+    <h2 id="reproducible">Reproducible builds</h2>
+    <p>You don't have to trust that the code we serve is the code we publish. Every build records what it was made from at <a href="/app/build-info.json">/app/build-info.json</a>: the exact source commit, the Node version and the public settings it was compiled with. A <a href="https://github.com/shrestha-droid/zero-trust-vault-v2/actions/workflows/reproducible.yml">public check</a> rebuilds that commit from scratch every day and fails unless both the hosted app and the offline file match it byte for byte. To check it yourself:</p>
+    <ol>
+      <li><code>git clone https://github.com/shrestha-droid/zero-trust-vault-v2 &amp;&amp; cd zero-trust-vault-v2 &amp;&amp; git checkout &lt;commit&gt;</code></li>
+      <li><code>npm ci</code>, then run <code>npx vite build</code> with each setting from <code>env</code> in build-info.json set as an environment variable.</li>
+      <li>Compare <code>shasum -a 256 dist/app/zero-trust-vault.html</code> with the fingerprint above.</li>
+    </ol>
 
     <h2>Report a vulnerability</h2>
     <p>Use the private <a href="https://github.com/shrestha-droid/zero-trust-vault-v2/security/advisories/new">"Report a vulnerability"</a> form on GitHub (it is visible only to the maintainer). Please include steps to reproduce and the version shown in the app's header, and don't disclose publicly until we've had a chance to fix it.</p>
