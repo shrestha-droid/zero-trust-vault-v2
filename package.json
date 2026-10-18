@@ -24,13 +24,13 @@
     "shamir-secret-sharing": "^0.0.4"
   },
   "devDependencies": {
-    "@electric-sql/pglite": "^0.5.8",
-    "@playwright/test": "^1.64.0",
+    "@electric-sql/pglite": "^0.5.10",
+    "@playwright/test": "^1.64.1",
     "@types/node": "^26.6.5",
     "typescript": "^7.0.2",
     "vite": "^8.3.4",
     "vite-plugin-singlefile": "^2.3.3",
-    "vitest": "^5.0.3"
+    "vitest": "^5.0.5"
   },
   "private": true,
   "engines": {
