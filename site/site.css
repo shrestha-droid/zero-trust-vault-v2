@@ -301,3 +301,5 @@ footer nav a:hover { color: var(--ink); }
   .logo .mark { width: 26px; height: 26px; }
   .beta { display: none; }
 }
+
+footer span a { color: inherit; }
